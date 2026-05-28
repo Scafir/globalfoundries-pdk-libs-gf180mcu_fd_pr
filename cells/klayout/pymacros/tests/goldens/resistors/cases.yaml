@@ -1,0 +1,382 @@
+# Resistor test cases: 4 variants per model × 18 models = 72 tests
+# Variants: min (DRC minimums), typ (1.0×1.0), wide (1.0×W_min), aspect (10.0×W_min)
+
+- name: rm1-min
+  model: rm1
+  l: 0.23
+  w: 0.23
+
+- name: rm1-typ
+  model: rm1
+  l: 1.0
+  w: 1.0
+
+- name: rm1-wide
+  model: rm1
+  l: 1.0
+  w: 5.0
+
+- name: rm1-aspect
+  model: rm1
+  l: 10.0
+  w: 0.23
+
+- name: rm2-min
+  model: rm2
+  l: 0.28
+  w: 0.28
+
+- name: rm2-typ
+  model: rm2
+  l: 1.0
+  w: 1.0
+
+- name: rm2-wide
+  model: rm2
+  l: 1.0
+  w: 5.0
+
+- name: rm2-aspect
+  model: rm2
+  l: 10.0
+  w: 0.28
+
+- name: rm3-min
+  model: rm3
+  l: 0.28
+  w: 0.28
+
+- name: rm3-typ
+  model: rm3
+  l: 1.0
+  w: 1.0
+
+- name: rm3-wide
+  model: rm3
+  l: 1.0
+  w: 5.0
+
+- name: rm3-aspect
+  model: rm3
+  l: 10.0
+  w: 0.28
+
+- name: tm6k-min
+  model: tm6k
+  l: 0.36
+  w: 0.36
+
+- name: tm6k-typ
+  model: tm6k
+  l: 1.0
+  w: 1.0
+
+- name: tm6k-wide
+  model: tm6k
+  l: 1.0
+  w: 5.0
+
+- name: tm6k-aspect
+  model: tm6k
+  l: 10.0
+  w: 0.36
+
+- name: tm9k-min
+  model: tm9k
+  l: 0.44
+  w: 0.44
+
+- name: tm9k-typ
+  model: tm9k
+  l: 1.0
+  w: 1.0
+
+- name: tm9k-wide
+  model: tm9k
+  l: 1.0
+  w: 5.0
+
+- name: tm9k-aspect
+  model: tm9k
+  l: 10.0
+  w: 0.44
+
+- name: tm11k-min
+  model: tm11k
+  l: 0.44
+  w: 0.44
+
+- name: tm11k-typ
+  model: tm11k
+  l: 1.0
+  w: 1.0
+
+- name: tm11k-wide
+  model: tm11k
+  l: 1.0
+  w: 5.0
+
+- name: tm11k-aspect
+  model: tm11k
+  l: 10.0
+  w: 0.44
+
+- name: tm30k-min
+  model: tm30k
+  l: 1.8
+  w: 1.8
+
+- name: tm30k-typ
+  model: tm30k
+  l: 3.0
+  w: 3.0
+
+- name: tm30k-wide
+  model: tm30k
+  l: 3.0
+  w: 5.0
+
+- name: tm30k-aspect
+  model: tm30k
+  l: 10.0
+  w: 1.8
+
+- name: nplus_s-min
+  model: nplus_s
+  l: 0.42
+  w: 0.42
+
+- name: nplus_s-typ
+  model: nplus_s
+  l: 1.0
+  w: 1.0
+
+- name: nplus_s-wide
+  model: nplus_s
+  l: 1.0
+  w: 5.0
+
+- name: nplus_s-aspect
+  model: nplus_s
+  l: 10.0
+  w: 0.42
+
+- name: pplus_s-min
+  model: pplus_s
+  l: 0.42
+  w: 0.42
+
+- name: pplus_s-typ
+  model: pplus_s
+  l: 1.0
+  w: 1.0
+
+- name: pplus_s-wide
+  model: pplus_s
+  l: 1.0
+  w: 5.0
+
+- name: pplus_s-aspect
+  model: pplus_s
+  l: 10.0
+  w: 0.42
+
+- name: nplus_u-min
+  model: nplus_u
+  l: 0.42
+  w: 0.42
+
+- name: nplus_u-typ
+  model: nplus_u
+  l: 1.0
+  w: 1.0
+
+- name: nplus_u-wide
+  model: nplus_u
+  l: 1.0
+  w: 5.0
+
+- name: nplus_u-aspect
+  model: nplus_u
+  l: 10.0
+  w: 0.42
+
+- name: pplus_u-min
+  model: pplus_u
+  l: 0.42
+  w: 0.42
+
+- name: pplus_u-typ
+  model: pplus_u
+  l: 1.0
+  w: 1.0
+
+- name: pplus_u-wide
+  model: pplus_u
+  l: 1.0
+  w: 5.0
+
+- name: pplus_u-aspect
+  model: pplus_u
+  l: 10.0
+  w: 0.42
+
+- name: nwell-min
+  model: nwell
+  l: 0.42
+  w: 0.42
+
+- name: nwell-typ
+  model: nwell
+  l: 1.0
+  w: 1.0
+
+- name: nwell-wide
+  model: nwell
+  l: 1.0
+  w: 5.0
+
+- name: nwell-aspect
+  model: nwell
+  l: 10.0
+  w: 0.42
+
+- name: pwell-min
+  model: pwell
+  l: 0.42
+  w: 0.42
+
+- name: pwell-typ
+  model: pwell
+  l: 1.0
+  w: 1.0
+
+- name: pwell-wide
+  model: pwell
+  l: 1.0
+  w: 5.0
+
+- name: pwell-aspect
+  model: pwell
+  l: 10.0
+  w: 0.42
+
+- name: npolyf_s-min
+  model: npolyf_s
+  l: 0.42
+  w: 0.42
+
+- name: npolyf_s-typ
+  model: npolyf_s
+  l: 1.0
+  w: 1.0
+
+- name: npolyf_s-wide
+  model: npolyf_s
+  l: 1.0
+  w: 5.0
+
+- name: npolyf_s-aspect
+  model: npolyf_s
+  l: 10.0
+  w: 0.42
+
+- name: ppolyf_s-min
+  model: ppolyf_s
+  l: 0.42
+  w: 0.42
+
+- name: ppolyf_s-typ
+  model: ppolyf_s
+  l: 1.0
+  w: 1.0
+
+- name: ppolyf_s-wide
+  model: ppolyf_s
+  l: 1.0
+  w: 5.0
+
+- name: ppolyf_s-aspect
+  model: ppolyf_s
+  l: 10.0
+  w: 0.42
+
+- name: npolyf_u-min
+  model: npolyf_u
+  l: 0.42
+  w: 0.42
+
+- name: npolyf_u-typ
+  model: npolyf_u
+  l: 1.0
+  w: 1.0
+
+- name: npolyf_u-wide
+  model: npolyf_u
+  l: 1.0
+  w: 5.0
+
+- name: npolyf_u-aspect
+  model: npolyf_u
+  l: 10.0
+  w: 0.42
+
+- name: ppolyf_u-min
+  model: ppolyf_u
+  l: 0.42
+  w: 0.42
+
+- name: ppolyf_u-typ
+  model: ppolyf_u
+  l: 1.0
+  w: 1.0
+
+- name: ppolyf_u-wide
+  model: ppolyf_u
+  l: 1.0
+  w: 5.0
+
+- name: ppolyf_u-aspect
+  model: ppolyf_u
+  l: 10.0
+  w: 0.42
+
+- name: ppolyf_u_h-min
+  model: ppolyf_u_h
+  l: 1.0
+  w: 1.0
+
+- name: ppolyf_u_h-typ
+  model: ppolyf_u_h
+  l: 2.0
+  w: 2.0
+
+- name: ppolyf_u_h-wide
+  model: ppolyf_u_h
+  l: 2.0
+  w: 5.0
+
+- name: ppolyf_u_h-aspect
+  model: ppolyf_u_h
+  l: 10.0
+  w: 1.0
+
+- name: schottky-min
+  model: schottky
+  l: 1.0
+  w: 0.62
+
+- name: schottky-typ
+  model: schottky
+  l: 1.0
+  w: 1.0
+
+- name: schottky-wide
+  model: schottky
+  l: 1.0
+  w: 5.0
+
+- name: schottky-aspect
+  model: schottky
+  l: 10.0
+  w: 0.62
