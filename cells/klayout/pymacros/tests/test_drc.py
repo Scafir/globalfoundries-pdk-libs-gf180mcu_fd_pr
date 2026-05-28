@@ -9,7 +9,7 @@ from tests.runners.drc_runner import run_drc
 
 def test_pcell_drc(pcell_testcase, pymacros_dir, drc_script_path, output_dir):
     """Run KLayout DRC on native PCell GDS and check for unexpected violations."""
-    gds_path = os.path.join(output_dir, f"{pcell_testcase.name}_drc.gds")
+    gds_path = pcell_testcase.generated_gds_path(output_dir)
 
     ok = generate_and_export(
         pymacros_dir,

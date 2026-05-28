@@ -18,10 +18,15 @@ class PCellTestCase:
     w: float
     goldens_dir: str
     extra_params: Dict = field(default_factory=dict)
+    reference: str = "gf"
 
     @property
     def golden_path(self) -> str:
         return os.path.join(self.goldens_dir, f"{self.name}_ref.gds")
+
+    def generated_gds_path(self, output_dir: str) -> str:
+        """Path for the generated GDS file, shared between compare and DRC tests."""
+        return os.path.join(output_dir, f"{self.name}_pcell.gds")
 
     @property
     def nat_params(self) -> Dict:
@@ -47,7 +52,13 @@ def pytest_addoption(parser):
         "--regenerate",
         action="store_true",
         default=False,
-        help="Regenerate golden GDS files instead of comparing",
+        help="Regenerate PCell golden GDS files instead of comparing",
+    )
+    parser.addoption(
+        "--regenerate-gf",
+        action="store_true",
+        default=False,
+        help="Regenerate gdsfactory golden GDS files instead of comparing",
     )
     parser.addoption(
         "--output-dir",
@@ -85,6 +96,7 @@ def pytest_generate_tests(metafunc):
                 w=case["w"],
                 goldens_dir=str(cases_file.parent),
                 extra_params=case.get("extra", {}),
+                reference=case.get("reference", "gf"),
             )
             testcases.append(tc)
 
@@ -111,6 +123,11 @@ def pymacros_dir(request) -> Path:
 @pytest.fixture(scope="session")
 def regenerate(request) -> bool:
     return request.config.getoption("--regenerate")
+
+
+@pytest.fixture(scope="session")
+def regenerate_gf(request) -> bool:
+    return request.config.getoption("--regenerate-gf")
 
 
 @pytest.fixture(scope="session")

@@ -362,10 +362,13 @@
   w: 1.0
 
 # New option test cases: guard ring, DNWELL, center contacts
+# reference: "pcell" means golden is PCell-only (gdsfactory won't match)
+# reference: "gf" (default) means golden is from gdsfactory
 - name: nplus_s-gr
   model: nplus_s
   l: 2.0
   w: 2.0
+  reference: pcell
   extra:
     guard_ring: true
 
@@ -388,6 +391,7 @@
   model: nplus_s
   l: 5.0
   w: 1.0
+  reference: pcell
   extra:
     n_center_contacts: 2
 
@@ -395,6 +399,7 @@
   model: npolyf_s
   l: 2.0
   w: 2.0
+  reference: pcell
   extra:
     guard_ring: true
 
@@ -409,6 +414,7 @@
   model: npolyf_s
   l: 6.0
   w: 1.0
+  reference: pcell
   extra:
     n_center_contacts: 3
 
@@ -416,6 +422,7 @@
   model: ppolyf_u
   l: 2.0
   w: 2.0
+  reference: pcell
   extra:
     guard_ring: true
 
@@ -430,6 +437,7 @@
   model: nwell
   l: 2.0
   w: 2.0
+  reference: pcell
   extra:
     guard_ring: true
 
@@ -444,6 +452,7 @@
   model: ppolyf_u_h
   l: 3.0
   w: 2.0
+  reference: pcell
   extra:
     guard_ring: true
 
@@ -451,7 +460,10 @@
   model: ppolyf_u_h
   l: 5.0
   w: 2.0
+  reference: pcell
   extra:
     n_center_contacts: 2
+
+
 
 

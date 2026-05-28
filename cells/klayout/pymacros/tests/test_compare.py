@@ -3,11 +3,11 @@ import os
 
 import pytest
 
-from tests.runners.compare_runner import compare, generate_and_export, generate_golden
+from tests.runners.compare_runner import compare, generate_and_export, generate_golden, generate_golden_gf
 
 
-def test_pcell_compare(pcell_testcase, pymacros_dir, regenerate, output_dir):
-    """Compare native PCell GDS against golden reference."""
+def test_pcell_compare(pcell_testcase, pymacros_dir, regenerate, regenerate_gf, output_dir):
+    """Compare PCell GDS against golden reference."""
     golden_path = pcell_testcase.golden_path
     actual_path = os.path.join(output_dir, f"{pcell_testcase.name}_native.gds")
 
@@ -22,8 +22,18 @@ def test_pcell_compare(pcell_testcase, pymacros_dir, regenerate, output_dir):
         assert ok, f"Failed to generate golden for {pcell_testcase.name}"
         pytest.skip("Golden regenerated")
 
+    if regenerate_gf:
+        if pcell_testcase.reference == "pcell":
+            pytest.skip(f"Gdsfactory does not match for {pcell_testcase.name} (reference=pcell)")
+        ok = generate_golden_gf(
+            pcell_testcase.nat_params,
+            golden_path,
+        )
+        assert ok, f"Failed to generate gdsfactory golden for {pcell_testcase.name}"
+        pytest.skip("Gdsfactory golden regenerated")
+
     if not os.path.exists(golden_path):
-        assert False, f"No golden found: {golden_path} (run with --regenerate to create)"
+        assert False, f"No golden found: {golden_path} (run with --regenerate or --regenerate-gf to create)"
 
     ok = generate_and_export(
         pymacros_dir,
