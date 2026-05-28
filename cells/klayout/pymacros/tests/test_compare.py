@@ -23,7 +23,7 @@ def test_pcell_compare(pcell_testcase, pymacros_dir, regenerate, output_dir):
         pytest.skip("Golden regenerated")
 
     if not os.path.exists(golden_path):
-        pytest.skip(f"No golden found: {golden_path}")
+        assert False, f"No golden found: {golden_path} (run with --regenerate to create)"
 
     ok = generate_and_export(
         pymacros_dir,
