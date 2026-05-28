@@ -25,7 +25,7 @@ class PCellTestCase:
 
     @property
     def nat_params(self) -> Dict:
-        params = {"model": self.model, "l": self.l, "w": self.w, "contacts": 0}
+        params = {"model": self.model, "l": self.l, "w": self.w}
         params.update(self.extra_params)
         return params
 

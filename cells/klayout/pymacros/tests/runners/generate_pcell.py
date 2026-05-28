@@ -36,13 +36,24 @@ if decl is None:
     print(f"ERROR: PCell '{pcell_name}' not found in library '{lib_name}'")
     sys.exit(1)
 
-# Collect params from all param_* globals
+# Collect params from all param_* globals, coercing types
+def _coerce(v):
+    if v == "True":
+        return True
+    if v == "False":
+        return False
+    try:
+        f = float(v)
+        return int(f) if f == int(f) else f
+    except (ValueError, TypeError):
+        return v
+
 params = {}
 for key in dir(sys.modules[__name__]):
     if key.startswith("param_"):
         param_name = key[6:]
         value = getattr(sys.modules[__name__], key)
-        params[param_name] = value
+        params[param_name] = _coerce(value)
 
 cell_index = src_layout.add_pcell_variant(src_layout.pcell_id(pcell_name), params)
 pcell_cell = src_layout.cell(cell_index)

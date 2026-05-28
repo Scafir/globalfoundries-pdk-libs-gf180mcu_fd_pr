@@ -17,7 +17,6 @@ res_models = [
   "nplus_s", "pplus_s", "nplus_u", "pplus_u",
   "nwell", "pwell",
   "npolyf_s", "ppolyf_s", "npolyf_u", "ppolyf_u", "ppolyf_u_h",
-  "schottky",
 ]
 
 resistor_type_map = {
@@ -39,7 +38,6 @@ resistor_type_map = {
   "npolyf_u":  ("poly", Layers.poly, Layers.res_mk),
   "ppolyf_u":  ("poly", Layers.poly, Layers.res_mk),
   "ppolyf_u_h": ("poly", Layers.poly, Layers.res_mk),
-  "schottky":  ("schottky", Layers.schottky, Layers.diode_mk),
 }
 
 # Classification helpers (underscore prefix = internal)
@@ -238,15 +236,14 @@ def _make_guard_ring(device_xmin, device_ymin, device_xmax, device_ymax, gr_w=0.
   children = []
 
   def _ring_strips(layer, x0, y0, width, height, strip_w):
-    top = Rect(layer=layer, w=width, h=strip_w,
-               enl_l=x0, enl_r=x0, enl_b=y0 + height - strip_w, enl_t=y0 + height)
-    bot = Rect(layer=layer, w=width, h=strip_w,
-               enl_l=x0, enl_r=x0, enl_b=y0, enl_t=y0 + strip_w)
-    left = Rect(layer=layer, w=strip_w, h=height - 2 * strip_w,
-                enl_l=x0, enl_r=x0, enl_b=y0, enl_t=y0)
-    right = Rect(layer=layer, w=strip_w, h=height - 2 * strip_w,
-                 enl_l=x0 + width - strip_w, enl_r=x0 + width - strip_w,
-                 enl_b=y0, enl_t=y0)
+    top = Translated(child=Rect(layer=layer, w=width, h=strip_w),
+                     trans=kdb.DTrans(kdb.DVector(_snap(x0), _snap(y0 + height - strip_w))))
+    bot = Translated(child=Rect(layer=layer, w=width, h=strip_w),
+                     trans=kdb.DTrans(kdb.DVector(_snap(x0), _snap(y0))))
+    left = Translated(child=Rect(layer=layer, w=strip_w, h=height - 2 * strip_w),
+                      trans=kdb.DTrans(kdb.DVector(_snap(x0), _snap(y0))))
+    right = Translated(child=Rect(layer=layer, w=strip_w, h=height - 2 * strip_w),
+                       trans=kdb.DTrans(kdb.DVector(_snap(x0 + width - strip_w), _snap(y0))))
     return [top, bot, left, right]
 
   children.extend(_ring_strips(Layers.comp, rxmin, rymin, rw, rh, gr_w))
@@ -471,9 +468,9 @@ def make_diffusion_resistor(model, l, w, marker_layer, implant_layer, sub_implan
 # ====================================================================
 
 
-def _poly_params(model):
+def _poly_params(model, with_dnwell=False):
   """Return parameters for poly resistors (n-type vs p-type, salicided vs not)."""
-  sub_sp = 0.26 if _n_type(model) else 0.4
+  sub_sp = 0.26 if (_n_type(model) and not with_dnwell) else 0.4
   return {
     "pl_res_ext": 0.29 if _salicided(model) else 0.66,
     "con_enc":    0.07 if _salicided(model) else 0.0,
@@ -485,7 +482,7 @@ def make_poly_resistor(model, l, w, marker_layer, implant_layer, sub_implant_lay
                         with_contacts=True, with_substrate=True, substrate_side="left",
                         guard_ring=False, with_dnwell=False, n_center_contacts=0):
   """Match gdsfactory's polyf_res_inst -> draw_npolyf_res / draw_ppolyf_res."""
-  pp = _poly_params(model)
+  pp = _poly_params(model, with_dnwell=with_dnwell and _n_type(model))
   pl_res_ext = pp["pl_res_ext"]
   con_enc = pp["con_enc"]
   np_enc_poly2 = 0.3
@@ -493,6 +490,9 @@ def make_poly_resistor(model, l, w, marker_layer, implant_layer, sub_implant_lay
   sub_w = 0.36
   cmp_area = 0.203
   comp_spacing = pp["comp_spacing"]
+  # gdsfactory uses nplus for substrate implant when deepnwell=1 for n-type poly
+  if with_dnwell and _n_type(model):
+    sub_implant_layer = Layers.nplus
 
   marker = Rect(layer=marker_layer, w=l, h=w, name="marker")
   poly = Rect(layer=Layers.poly, enclose=marker, enl_l=pl_res_ext, enl_r=pl_res_ext)
@@ -566,7 +566,15 @@ def make_poly_resistor(model, l, w, marker_layer, implant_layer, sub_implant_lay
     elif with_substrate and substrate_side == "both":
       dnx = -pl_res_ext - comp_spacing - sub_w
       dpx = l + pl_res_ext + comp_spacing + sub_w
-    comp.append(_make_dnwell_layers(dnx, dny, dpx, dpy))
+    # gdsfactory creates only DNWELL (no LVPWELL) for poly resistors
+    dn_enc_cmp = 0.5
+    dn_rect = Rect(layer=Layers.dnwell,
+                   w=(dpx - dnx) + 2 * dn_enc_cmp,
+                   h=(dpy - dny) + 2 * dn_enc_cmp)
+    comp.append(Translated(child=dn_rect,
+                           trans=kdb.DTrans(kdb.DVector(
+                               _snap(dnx - dn_enc_cmp),
+                               _snap(dny - dn_enc_cmp)))))
 
   # Guard ring
   if guard_ring:
@@ -579,12 +587,13 @@ def make_poly_resistor(model, l, w, marker_layer, implant_layer, sub_implant_lay
       dnx = -pl_res_ext - comp_spacing - sub_w
       dpx = l + pl_res_ext + comp_spacing + sub_w
     if with_dnwell:
-      lvpwell_enc = 0.6
-      dn_enc = 2.5
-      dnx -= lvpwell_enc + dn_enc
-      dny -= lvpwell_enc + dn_enc
-      dpx += lvpwell_enc + dn_enc
-      dpy += lvpwell_enc + dn_enc
+      # Poly DNWELL uses dn_enc_cmp + pcmpgr_enc_dn
+      dn_enc_cmp = 0.5
+      pcmpgr_enc_dn = 2.5
+      dnx -= dn_enc_cmp + pcmpgr_enc_dn
+      dny -= dn_enc_cmp + pcmpgr_enc_dn
+      dpx += dn_enc_cmp + pcmpgr_enc_dn
+      dpy += dn_enc_cmp + pcmpgr_enc_dn
     comp.append(_make_guard_ring(dnx, dny, dpx, dpy))
 
   return Linear(align=None, children=comp)
@@ -887,10 +896,5 @@ def make_resistor(
                               substrate_side=substrate_side,
                               guard_ring=guard_ring,
                               with_dnwell=with_dnwell and (model == "nwell"))
-
-  if model == "schottky":
-    body = Rect(layer=res_layer, w=l, h=w, name="body")
-    device = Linear(align="C", children=[body, Rect(layer=marker_layer, enclose=body)])
-    return Justify(child=device, ref_point="SW")
 
   raise ValueError(f"Resistor model {model!r} has no generator implemented.")

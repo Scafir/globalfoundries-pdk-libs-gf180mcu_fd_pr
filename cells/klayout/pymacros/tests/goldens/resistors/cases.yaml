@@ -361,22 +361,97 @@
   l: 10.0
   w: 1.0
 
-- name: schottky-min
-  model: schottky
-  l: 1.0
-  w: 0.62
+# New option test cases: guard ring, DNWELL, center contacts
+- name: nplus_s-gr
+  model: nplus_s
+  l: 2.0
+  w: 2.0
+  extra:
+    guard_ring: true
 
-- name: schottky-typ
-  model: schottky
-  l: 1.0
+- name: nplus_s-dnwell
+  model: nplus_s
+  l: 2.0
+  w: 2.0
+  extra:
+    with_dnwell: true
+
+- name: nplus_s-gr-dnwell
+  model: nplus_s
+  l: 2.0
+  w: 2.0
+  extra:
+    guard_ring: true
+    with_dnwell: true
+
+- name: nplus_s-center-cc2
+  model: nplus_s
+  l: 5.0
   w: 1.0
+  extra:
+    n_center_contacts: 2
 
-- name: schottky-wide
-  model: schottky
-  l: 1.0
-  w: 5.0
+- name: npolyf_s-gr
+  model: npolyf_s
+  l: 2.0
+  w: 2.0
+  extra:
+    guard_ring: true
 
-- name: schottky-aspect
-  model: schottky
-  l: 10.0
-  w: 0.62
+- name: npolyf_s-dnwell
+  model: npolyf_s
+  l: 2.0
+  w: 2.0
+  extra:
+    with_dnwell: true
+
+- name: npolyf_s-center-cc3
+  model: npolyf_s
+  l: 6.0
+  w: 1.0
+  extra:
+    n_center_contacts: 3
+
+- name: ppolyf_u-gr
+  model: ppolyf_u
+  l: 2.0
+  w: 2.0
+  extra:
+    guard_ring: true
+
+- name: nwell-dnwell
+  model: nwell
+  l: 2.0
+  w: 2.0
+  extra:
+    with_dnwell: true
+
+- name: nwell-gr
+  model: nwell
+  l: 2.0
+  w: 2.0
+  extra:
+    guard_ring: true
+
+- name: pwell-gr
+  model: pwell
+  l: 2.0
+  w: 2.0
+  extra:
+    guard_ring: true
+
+- name: ppolyf_u_h-gr
+  model: ppolyf_u_h
+  l: 3.0
+  w: 2.0
+  extra:
+    guard_ring: true
+
+- name: ppolyf_u_h-center-cc2
+  model: ppolyf_u_h
+  l: 5.0
+  w: 2.0
+  extra:
+    n_center_contacts: 2
+
+

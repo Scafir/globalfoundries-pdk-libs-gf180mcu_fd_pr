@@ -22,11 +22,15 @@ class ResistorPCell(kdb.PCellDeclarationHelper):
     self.param("with_dnwell", self.TypeBoolean, "Deep NWell", default=False)
     self.param("n_center_contacts", self.TypeInt, "Center contacts", default=0)
 
-  def callback_impl(self, name):
-    m = self.model
+  def _model(self):
+    v = self.model
+    return v.value if hasattr(v, 'value') else v
 
-    # Metal and schottky: hide all advanced options
-    if is_metal(m) or m == "schottky":
+  def callback_impl(self, name):
+    m = self._model()
+
+    # Metal: hide all advanced options
+    if is_metal(m):
       self.with_contacts.visible = False
       self.with_substrate.visible = False
       self.substrate_side.visible = False
@@ -49,12 +53,12 @@ class ResistorPCell(kdb.PCellDeclarationHelper):
     # Guard ring: diffusion, poly, ppolyf_u_h, well
     self.guard_ring.visible = is_diffusion(m) or is_poly(m) or m in ("ppolyf_u_h", "nwell", "pwell")
 
-    # Contacts and substrate: visible for all non-metal, non-schottky
+    # Contacts and substrate: visible for all non-metal
     self.with_contacts.visible = True
     self.with_substrate.visible = True
 
   def coerce_parameters_impl(self):
-    m = self.model
+    m = self._model()
     if m == "rm1":
       self.l = max(Rules.rm1_l, self.l)
       self.w = max(Rules.rm1_w, self.w)
@@ -84,11 +88,11 @@ class ResistorPCell(kdb.PCellDeclarationHelper):
     self.n_center_contacts = max(0, self.n_center_contacts)
 
   def display_text_impl(self):
-    return "Resistor %s l:%.12g w:%.12g" % (self.model, self.l, self.w)
+    return "Resistor %s l:%.12g w:%.12g" % (self._model(), self.l, self.w)
 
   def produce_impl(self):
     gen = make_resistor(
-        model=self.model,
+        model=self._model(),
         l=self.l,
         w=self.w,
         with_contacts=self.with_contacts,
