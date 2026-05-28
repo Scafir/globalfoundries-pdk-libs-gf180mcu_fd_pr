@@ -1,6 +1,6 @@
 import pya as kdb
 
-from ..devices.resistor import res_models, make_resistor, is_metal
+from ..devices.resistor import res_models, make_resistor, is_metal, is_diffusion, is_poly
 from ..tech.gf180_rules import Rules
 
 class ResistorPCell(kdb.PCellDeclarationHelper):
@@ -21,6 +21,37 @@ class ResistorPCell(kdb.PCellDeclarationHelper):
     self.param("guard_ring", self.TypeBoolean, "Guard ring", default=False)
     self.param("with_dnwell", self.TypeBoolean, "Deep NWell", default=False)
     self.param("n_center_contacts", self.TypeInt, "Center contacts", default=0)
+
+  def callback_impl(self, name):
+    m = self.model
+
+    # Metal and schottky: hide all advanced options
+    if is_metal(m) or m == "schottky":
+      self.with_contacts.visible = False
+      self.with_substrate.visible = False
+      self.substrate_side.visible = False
+      self.guard_ring.visible = False
+      self.with_dnwell.visible = False
+      self.n_center_contacts.visible = False
+      return
+
+    # Substrate side only visible when substrate is enabled
+    self.substrate_side.visible = self.with_substrate.value
+
+    # Center contacts: diffusion, poly, ppolyf_u_h
+    self.n_center_contacts.visible = is_diffusion(m) or is_poly(m) or m == "ppolyf_u_h"
+
+    # DNWELL: only n-type diffusion and n-type poly and nwell
+    n_diff = is_diffusion(m) and m.startswith("n")
+    n_poly = is_poly(m) and m.startswith("n")
+    self.with_dnwell.visible = n_diff or n_poly or m == "nwell"
+
+    # Guard ring: diffusion, poly, ppolyf_u_h, well
+    self.guard_ring.visible = is_diffusion(m) or is_poly(m) or m in ("ppolyf_u_h", "nwell", "pwell")
+
+    # Contacts and substrate: visible for all non-metal, non-schottky
+    self.with_contacts.visible = True
+    self.with_substrate.visible = True
 
   def coerce_parameters_impl(self):
     m = self.model
