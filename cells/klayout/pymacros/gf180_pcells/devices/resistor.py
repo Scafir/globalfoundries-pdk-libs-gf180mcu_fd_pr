@@ -194,6 +194,129 @@ def _make_terminal(con_w, con_h, cmp_impl_layer, impl_enc):
   ])
 
 
+def _contact_positions_on_edge(start, end, size, spacing):
+  """Generate evenly-spaced contact center positions along one edge."""
+  length = end - start
+  n = max(1, int(length // (size + spacing)))
+  total = n * size + max(0, n - 1) * spacing
+  first = start + (length - total) / 2
+  return [first + i * (size + spacing) + size / 2 for i in range(n)]
+
+
+def _make_guard_ring(device_xmin, device_ymin, device_xmax, device_ymax, gr_w=0.36):
+  """Create a P+ guard ring: comp ring + pplus implant + contacts + metal1.
+
+  Built as four strip-rects per layer (top/bottom/left/right).
+  """
+  comp_pp_enc = 0.16
+  con_size = 0.22
+  con_sp = 0.28
+  m1_enc = 0.08
+
+  rxmin = device_xmin - gr_w
+  rymin = device_ymin - gr_w
+  rxmax = device_xmax + gr_w
+  rymax = device_ymax + gr_w
+  rw = rxmax - rxmin
+  rh = rymax - rymin
+
+  impl_xmin = rxmin - comp_pp_enc
+  impl_ymin = rymin - comp_pp_enc
+  impl_w = rw + 2 * comp_pp_enc
+  impl_h = rh + 2 * comp_pp_enc
+  impl_ymax = impl_ymin + impl_h
+  impl_xmax = impl_xmin + impl_w
+
+  m1_xmin = rxmin - m1_enc
+  m1_ymin = rymin - m1_enc
+  m1_w = rw + 2 * m1_enc
+  m1_h = rh + 2 * m1_enc
+  m1_ymax = m1_ymin + m1_h
+  m1_xmax = m1_xmin + m1_w
+  m1_gr = gr_w + m1_enc
+
+  children = []
+
+  def _ring_strips(layer, x0, y0, width, height, strip_w):
+    top = Rect(layer=layer, w=width, h=strip_w,
+               enl_l=x0, enl_r=x0, enl_b=y0 + height - strip_w, enl_t=y0 + height)
+    bot = Rect(layer=layer, w=width, h=strip_w,
+               enl_l=x0, enl_r=x0, enl_b=y0, enl_t=y0 + strip_w)
+    left = Rect(layer=layer, w=strip_w, h=height - 2 * strip_w,
+                enl_l=x0, enl_r=x0, enl_b=y0, enl_t=y0)
+    right = Rect(layer=layer, w=strip_w, h=height - 2 * strip_w,
+                 enl_l=x0 + width - strip_w, enl_r=x0 + width - strip_w,
+                 enl_b=y0, enl_t=y0)
+    return [top, bot, left, right]
+
+  children.extend(_ring_strips(Layers.comp, rxmin, rymin, rw, rh, gr_w))
+  children.extend(_ring_strips(Layers.pplus, impl_xmin, impl_ymin, impl_w, impl_h, comp_pp_enc * 2))
+  children.extend(_ring_strips(Layers.metal1, m1_xmin, m1_ymin, m1_w, m1_h, m1_gr))
+
+  contact_rect = Rect(layer=Layers.contact, w=con_size, h=con_size,
+                      enl_l=con_size / 2, enl_r=-con_size / 2,
+                      enl_b=con_size / 2, enl_t=-con_size / 2)
+
+  # Top edge
+  for cx in _contact_positions_on_edge(rxmin, rxmax, con_size, con_sp):
+    children.append(Translated(child=contact_rect,
+                               trans=kdb.DTrans(kdb.DVector(_snap(cx), _snap(rymax + gr_w / 2)))))
+  # Bottom edge
+  for cx in _contact_positions_on_edge(rxmin, rxmax, con_size, con_sp):
+    children.append(Translated(child=contact_rect,
+                               trans=kdb.DTrans(kdb.DVector(_snap(cx), _snap(rymin + gr_w / 2)))))
+  # Left edge
+  for cy in _contact_positions_on_edge(rymin, rymax, con_size, con_sp):
+    children.append(Translated(child=contact_rect,
+                               trans=kdb.DTrans(kdb.DVector(_snap(rxmin + gr_w / 2), _snap(cy)))))
+  # Right edge
+  for cy in _contact_positions_on_edge(rymin, rymax, con_size, con_sp):
+    children.append(Translated(child=contact_rect,
+                               trans=kdb.DTrans(kdb.DVector(_snap(rxmax - gr_w / 2), _snap(cy)))))
+
+  return Linear(align=None, children=children)
+
+
+def _make_dnwell_layers(device_xmin, device_ymin, device_xmax, device_ymax):
+  """Create LVPWELL + DNWELL enclosure layers around a device."""
+  lvpwell_enc = 0.6
+  dn_enc = 2.5
+
+  children = []
+  lvpwell = Rect(layer=Layers.lvpwell,
+                 w=(device_xmax - device_xmin) + 2 * lvpwell_enc,
+                 h=(device_ymax - device_ymin) + 2 * lvpwell_enc)
+  children.append(Translated(child=lvpwell,
+                             trans=kdb.DTrans(kdb.DVector(
+                                 _snap(device_xmin - lvpwell_enc),
+                                 _snap(device_ymin - lvpwell_enc)))))
+
+  dn = Rect(layer=Layers.dnwell,
+            w=(device_xmax - device_xmin) + 2 * (lvpwell_enc + dn_enc),
+            h=(device_ymax - device_ymin) + 2 * (lvpwell_enc + dn_enc))
+  children.append(Translated(child=dn,
+                             trans=kdb.DTrans(kdb.DVector(
+                                 _snap(device_xmin - lvpwell_enc - dn_enc),
+                                 _snap(device_ymin - lvpwell_enc - dn_enc)))))
+
+  return Linear(align=None, children=children)
+
+
+def _center_contacts(res_xmin, res_ymin, res_xmax, res_ymax, count):
+  """Create intermediate contact stacks along the resistor body."""
+  if count <= 0:
+    return None
+  children = []
+  spacing = (res_xmax - res_xmin) / (count + 1)
+  for i in range(1, count + 1):
+    cx = res_xmin + i * spacing
+    cy = (res_ymin + res_ymax) / 2
+    cont = _diffusion_contact_stack(0.22, 0.22)
+    children.append(Translated(child=cont,
+                               trans=kdb.DTrans(kdb.DVector(_snap(cx), _snap(cy)))))
+  return Linear(align=None, children=children)
+
+
 # ====================================================================
 # Diffusion resistor
 # ====================================================================
@@ -212,7 +335,9 @@ def _diffusion_params(model):
   }
 
 
-def make_diffusion_resistor(model, l, w, marker_layer, implant_layer, sub_implant_layer, block_layer, nwell_layer):
+def make_diffusion_resistor(model, l, w, marker_layer, implant_layer, sub_implant_layer, block_layer, nwell_layer,
+                             with_contacts=True, with_substrate=True, substrate_side="left",
+                             guard_ring=False, with_dnwell=False, n_center_contacts=0):
   """Match gdsfactory's plus_res_inst -> draw_nplus_res / draw_pplus_res."""
   p = _diffusion_params(model)
   cmp_res_ext = p["cmp_res_ext"]
@@ -243,41 +368,100 @@ def make_diffusion_resistor(model, l, w, marker_layer, implant_layer, sub_implan
     comp.append(sab)
 
   # Contact stacks
-  term_w = cmp_res_ext + con_enc
-  left_center_x = (-cmp_res_ext + con_enc) / 2
-  right_center_x = l + (cmp_res_ext - con_enc) / 2
+  if with_contacts:
+    term_w = cmp_res_ext + con_enc
+    left_center_x = (-cmp_res_ext + con_enc) / 2
+    right_center_x = l + (cmp_res_ext - con_enc) / 2
 
-  left_cont = _diffusion_contact_stack(term_w, w)
-  right_cont = _diffusion_contact_stack(term_w, w)
+    left_cont = _diffusion_contact_stack(term_w, w)
+    right_cont = _diffusion_contact_stack(term_w, w)
 
-  left_cont_offset = kdb.DTrans(kdb.DVector(_snap(left_center_x), _snap(w / 2)))
-  right_cont_offset = kdb.DTrans(kdb.DVector(_snap(right_center_x), _snap(w / 2)))
+    left_cont_offset = kdb.DTrans(kdb.DVector(_snap(left_center_x), _snap(w / 2)))
+    right_cont_offset = kdb.DTrans(kdb.DVector(_snap(right_center_x), _snap(w / 2)))
 
-  comp.append(Translated(child=left_cont, trans=left_cont_offset))
-  comp.append(Translated(child=right_cont, trans=right_cont_offset))
+    comp.append(Translated(child=left_cont, trans=left_cont_offset))
+    comp.append(Translated(child=right_cont, trans=right_cont_offset))
+
+  # Center contacts on resistor body
+  if n_center_contacts > 0:
+    cc = _center_contacts(0, 0, l, w, n_center_contacts)
+    if cc:
+      comp.append(cc)
 
   # Substrate
-  sub_h_raw = max(w, round(cmp_area / sub_w, 3))
-  sub_ymin_exact = w / 2.0 - sub_h_raw / 2.0
-  sub_ymax_exact = sub_ymin_exact + sub_h_raw
-  sub_h = _snap(sub_ymax_exact) - _snap(sub_ymin_exact)
-  sub_target_xmin = -cmp_res_ext - comp_spacing - sub_w
+  if with_substrate:
+    sub_h_raw = max(w, round(cmp_area / sub_w, 3))
+    sub_ymin_exact = w / 2.0 - sub_h_raw / 2.0
+    sub_ymax_exact = sub_ymin_exact + sub_h_raw
+    sub_h = _snap(sub_ymax_exact) - _snap(sub_ymin_exact)
 
-  comp.append(_make_substrate(sub_w, sub_h, sub_implant_layer, np_enc_cmp,
-                              _snap(sub_target_xmin), _snap(sub_ymin_exact)))
+    if substrate_side == "left":
+      sub_target_xmin = -cmp_res_ext - comp_spacing - sub_w
+      comp.append(_make_substrate(sub_w, sub_h, sub_implant_layer, np_enc_cmp,
+                                  _snap(sub_target_xmin), _snap(sub_ymin_exact)))
+    elif substrate_side == "right":
+      sub_target_xmin = l + cmp_res_ext + comp_spacing
+      comp.append(_make_substrate(sub_w, sub_h, sub_implant_layer, np_enc_cmp,
+                                  _snap(sub_target_xmin), _snap(sub_ymin_exact)))
+    else:  # both
+      sub_left_xmin = -cmp_res_ext - comp_spacing - sub_w
+      sub_right_xmin = l + cmp_res_ext + comp_spacing
+      comp.append(_make_substrate(sub_w, sub_h, sub_implant_layer, np_enc_cmp,
+                                  _snap(sub_left_xmin), _snap(sub_ymin_exact)))
+      comp.append(_make_substrate(sub_w, sub_h, sub_implant_layer, np_enc_cmp,
+                                  _snap(sub_right_xmin), _snap(sub_ymin_exact)))
 
   # Nwell for pplus resistors
   if nwell_layer:
     nw_enc = 0.6
-    dev_xmin = _snap(sub_target_xmin) - np_enc_cmp
+    dev_xmin = -cmp_res_ext - comp_spacing - sub_w - np_enc_cmp if with_substrate and substrate_side != "right" else -np_enc_cmp
+    if substrate_side == "right":
+      dev_xmin = -np_enc_cmp
+    elif with_substrate and substrate_side == "left":
+      dev_xmin = -cmp_res_ext - comp_spacing - sub_w - np_enc_cmp
+    else:
+      dev_xmin = -np_enc_cmp
     dev_ymin = -np_enc_cmp
     dev_xmax = l + cmp_res_ext + np_enc_cmp
     dev_ymax = w + np_enc_cmp
+    if substrate_side == "right":
+      dev_xmax = l + cmp_res_ext + comp_spacing + sub_w + np_enc_cmp
     nw_rect = Rect(layer=nwell_layer,
                    w=(dev_xmax - dev_xmin) + 2 * nw_enc,
                    h=(dev_ymax - dev_ymin) + 2 * nw_enc)
     comp.append(Translated(child=nw_rect,
                            trans=kdb.DTrans(kdb.DVector(dev_xmin - nw_enc, dev_ymin - nw_enc))))
+
+  # DNWELL for nplus models when requested
+  if with_dnwell:
+    dnx, dny, dpx, dpy = -cmp_res_ext, 0, l + cmp_res_ext, w
+    if with_substrate and substrate_side == "left":
+      dnx = -cmp_res_ext - comp_spacing - sub_w
+    elif with_substrate and substrate_side == "right":
+      dpx = l + cmp_res_ext + comp_spacing + sub_w
+    elif with_substrate and substrate_side == "both":
+      dnx = -cmp_res_ext - comp_spacing - sub_w
+      dpx = l + cmp_res_ext + comp_spacing + sub_w
+    comp.append(_make_dnwell_layers(dnx, dny, dpx, dpy))
+
+  # Guard ring
+  if guard_ring:
+    dnx, dny, dpx, dpy = -cmp_res_ext, 0, l + cmp_res_ext, w
+    if with_substrate and substrate_side == "left":
+      dnx = -cmp_res_ext - comp_spacing - sub_w
+    elif with_substrate and substrate_side == "right":
+      dpx = l + cmp_res_ext + comp_spacing + sub_w
+    elif with_substrate and substrate_side == "both":
+      dnx = -cmp_res_ext - comp_spacing - sub_w
+      dpx = l + cmp_res_ext + comp_spacing + sub_w
+    if with_dnwell:
+      lvpwell_enc = 0.6
+      dn_enc = 2.5
+      dnx -= lvpwell_enc + dn_enc
+      dny -= lvpwell_enc + dn_enc
+      dpx += lvpwell_enc + dn_enc
+      dpy += lvpwell_enc + dn_enc
+    comp.append(_make_guard_ring(dnx, dny, dpx, dpy))
 
   return Linear(align=None, children=comp)
 
@@ -297,7 +481,9 @@ def _poly_params(model):
   }
 
 
-def make_poly_resistor(model, l, w, marker_layer, implant_layer, sub_implant_layer, block_layer):
+def make_poly_resistor(model, l, w, marker_layer, implant_layer, sub_implant_layer, block_layer,
+                        with_contacts=True, with_substrate=True, substrate_side="left",
+                        guard_ring=False, with_dnwell=False, n_center_contacts=0):
   """Match gdsfactory's polyf_res_inst -> draw_npolyf_res / draw_ppolyf_res."""
   pp = _poly_params(model)
   pl_res_ext = pp["pl_res_ext"]
@@ -327,28 +513,79 @@ def make_poly_resistor(model, l, w, marker_layer, implant_layer, sub_implant_lay
     comp.append(sab)
 
   # Contact stacks
-  left_term_w = pl_res_ext + con_enc
-  left_center_x = (-pl_res_ext + con_enc) / 2
-  right_center_x = left_center_x + (pl_res_ext - con_enc + l)
+  if with_contacts:
+    left_term_w = pl_res_ext + con_enc
+    left_center_x = (-pl_res_ext + con_enc) / 2
+    right_center_x = left_center_x + (pl_res_ext - con_enc + l)
 
-  left_cont = _diffusion_contact_stack(left_term_w, w)
-  right_cont = _diffusion_contact_stack(left_term_w, w)
+    left_cont = _diffusion_contact_stack(left_term_w, w)
+    right_cont = _diffusion_contact_stack(left_term_w, w)
 
-  left_cont_offset = kdb.DTrans(kdb.DVector(_snap(left_center_x), _snap(w / 2)))
-  right_cont_offset = kdb.DTrans(kdb.DVector(_snap(right_center_x), _snap(w / 2)))
+    left_cont_offset = kdb.DTrans(kdb.DVector(_snap(left_center_x), _snap(w / 2)))
+    right_cont_offset = kdb.DTrans(kdb.DVector(_snap(right_center_x), _snap(w / 2)))
 
-  comp.append(Translated(child=left_cont, trans=left_cont_offset))
-  comp.append(Translated(child=right_cont, trans=right_cont_offset))
+    comp.append(Translated(child=left_cont, trans=left_cont_offset))
+    comp.append(Translated(child=right_cont, trans=right_cont_offset))
+
+  # Center contacts on resistor body
+  if n_center_contacts > 0:
+    cc = _center_contacts(0, 0, l, w, n_center_contacts)
+    if cc:
+      comp.append(cc)
 
   # Substrate
-  sub_h_raw = max(w, round(cmp_area / sub_w, 3))
-  sub_ymin_exact = w / 2.0 - sub_h_raw / 2.0
-  sub_ymax_exact = sub_ymin_exact + sub_h_raw
-  sub_h = _snap(sub_ymax_exact) - _snap(sub_ymin_exact)
+  if with_substrate:
+    sub_h_raw = max(w, round(cmp_area / sub_w, 3))
+    sub_ymin_exact = w / 2.0 - sub_h_raw / 2.0
+    sub_ymax_exact = sub_ymin_exact + sub_h_raw
+    sub_h = _snap(sub_ymax_exact) - _snap(sub_ymin_exact)
 
-  comp.append(_make_substrate(sub_w, sub_h, sub_implant_layer, pp_enc_cmp,
-                              _snap(-pl_res_ext - comp_spacing - sub_w),
-                              _snap(sub_ymin_exact)))
+    if substrate_side == "left":
+      comp.append(_make_substrate(sub_w, sub_h, sub_implant_layer, pp_enc_cmp,
+                                  _snap(-pl_res_ext - comp_spacing - sub_w),
+                                  _snap(sub_ymin_exact)))
+    elif substrate_side == "right":
+      comp.append(_make_substrate(sub_w, sub_h, sub_implant_layer, pp_enc_cmp,
+                                  _snap(l + pl_res_ext + comp_spacing),
+                                  _snap(sub_ymin_exact)))
+    else:  # both
+      comp.append(_make_substrate(sub_w, sub_h, sub_implant_layer, pp_enc_cmp,
+                                  _snap(-pl_res_ext - comp_spacing - sub_w),
+                                  _snap(sub_ymin_exact)))
+      comp.append(_make_substrate(sub_w, sub_h, sub_implant_layer, pp_enc_cmp,
+                                  _snap(l + pl_res_ext + comp_spacing),
+                                  _snap(sub_ymin_exact)))
+
+  # DNWELL for n-type poly when requested
+  if with_dnwell:
+    dnx, dny, dpx, dpy = -pl_res_ext, 0, l + pl_res_ext, w
+    if with_substrate and substrate_side == "left":
+      dnx = -pl_res_ext - comp_spacing - sub_w
+    elif with_substrate and substrate_side == "right":
+      dpx = l + pl_res_ext + comp_spacing + sub_w
+    elif with_substrate and substrate_side == "both":
+      dnx = -pl_res_ext - comp_spacing - sub_w
+      dpx = l + pl_res_ext + comp_spacing + sub_w
+    comp.append(_make_dnwell_layers(dnx, dny, dpx, dpy))
+
+  # Guard ring
+  if guard_ring:
+    dnx, dny, dpx, dpy = -pl_res_ext, 0, l + pl_res_ext, w
+    if with_substrate and substrate_side == "left":
+      dnx = -pl_res_ext - comp_spacing - sub_w
+    elif with_substrate and substrate_side == "right":
+      dpx = l + pl_res_ext + comp_spacing + sub_w
+    elif with_substrate and substrate_side == "both":
+      dnx = -pl_res_ext - comp_spacing - sub_w
+      dpx = l + pl_res_ext + comp_spacing + sub_w
+    if with_dnwell:
+      lvpwell_enc = 0.6
+      dn_enc = 2.5
+      dnx -= lvpwell_enc + dn_enc
+      dny -= lvpwell_enc + dn_enc
+      dpx += lvpwell_enc + dn_enc
+      dpy += lvpwell_enc + dn_enc
+    comp.append(_make_guard_ring(dnx, dny, dpx, dpy))
 
   return Linear(align=None, children=comp)
 
@@ -358,7 +595,9 @@ def make_poly_resistor(model, l, w, marker_layer, implant_layer, sub_implant_lay
 # ====================================================================
 
 
-def make_ppolyf_u_h(model, l, w, marker_layer, implant_layer, sub_implant_layer, block_layer):
+def make_ppolyf_u_h(model, l, w, marker_layer, implant_layer, sub_implant_layer, block_layer,
+                     with_contacts=True, with_substrate=True, substrate_side="left",
+                     guard_ring=False):
   """Match gdsfactory's draw_ppolyf_u_high_Rs_res."""
   pl_res_ext = 0.64
   pp_enc_poly2 = 0.18
@@ -402,29 +641,6 @@ def make_ppolyf_u_h(model, l, w, marker_layer, implant_layer, sub_implant_layer,
   pplus_left_offset = kdb.DTrans(kdb.DVector(_snap(-pl_res_ext - pp_enc_poly2), _snap(-pp_enc_poly2)))
   pplus_right_offset = kdb.DTrans(kdb.DVector(_snap(l), _snap(-pp_enc_poly2)))
 
-  # Contact stacks
-  left_cont = _diffusion_contact_stack(con_size, w)
-  right_cont = _diffusion_contact_stack(con_size, w)
-  left_center_x = -pl_res_ext + con_size / 2
-  right_center_x = pl_res_ext + l - con_size / 2
-  left_cont_offset = kdb.DTrans(kdb.DVector(_snap(left_center_x), _snap(w / 2.0)))
-  right_cont_offset = kdb.DTrans(kdb.DVector(_snap(right_center_x), _snap(w / 2.0)))
-
-  # Substrate (custom implant sizing with min area)
-  sub_rect = Rect(layer=Layers.comp, w=sub_w, h=w)
-  sub_impl_w = sub_w + 2 * pp_enc_cmp
-  sub_impl_h = w + 2 * pp_enc_cmp
-  if sub_impl_w * sub_impl_h < np_pp_area:
-    sub_impl_h = _snap(round(np_pp_area / sub_impl_w, 3))
-  sub_impl = Rect(layer=sub_implant_layer, w=sub_impl_w, h=sub_impl_h)
-  sub_impl_centered = Translated(
-    child=sub_impl,
-    trans=kdb.DTrans(kdb.DVector(_snap((sub_w - sub_impl_w) / 2.0),
-                                 _snap((w - sub_impl_h) / 2.0))))
-  sub_cont = _centered_contact_stack(sub_w, w, sub_rect)
-  substrate = Linear(align=None, children=[sub_rect, sub_impl_centered, sub_cont])
-  sub_offset = kdb.DTrans(kdb.DVector(_snap(-pl_res_ext - comp_spacing - sub_w), _snap(0)))
-
   comp = [
     marker,
     Translated(child=resis, trans=resis_offset),
@@ -432,10 +648,58 @@ def make_ppolyf_u_h(model, l, w, marker_layer, implant_layer, sub_implant_layer,
     poly,
     Translated(child=pplus_left, trans=pplus_left_offset),
     Translated(child=pplus_right, trans=pplus_right_offset),
-    Translated(child=left_cont, trans=left_cont_offset),
-    Translated(child=right_cont, trans=right_cont_offset),
-    Translated(child=substrate, trans=sub_offset),
   ]
+
+  # Contact stacks
+  if with_contacts:
+    left_cont = _diffusion_contact_stack(con_size, w)
+    right_cont = _diffusion_contact_stack(con_size, w)
+    left_center_x = -pl_res_ext + con_size / 2
+    right_center_x = pl_res_ext + l - con_size / 2
+    left_cont_offset = kdb.DTrans(kdb.DVector(_snap(left_center_x), _snap(w / 2.0)))
+    right_cont_offset = kdb.DTrans(kdb.DVector(_snap(right_center_x), _snap(w / 2.0)))
+
+    comp.append(Translated(child=left_cont, trans=left_cont_offset))
+    comp.append(Translated(child=right_cont, trans=right_cont_offset))
+
+  # Substrate (custom implant sizing with min area)
+  if with_substrate:
+    sub_rect = Rect(layer=Layers.comp, w=sub_w, h=w)
+    sub_impl_w = sub_w + 2 * pp_enc_cmp
+    sub_impl_h = w + 2 * pp_enc_cmp
+    if sub_impl_w * sub_impl_h < np_pp_area:
+      sub_impl_h = _snap(round(np_pp_area / sub_impl_w, 3))
+    sub_impl = Rect(layer=sub_implant_layer, w=sub_impl_w, h=sub_impl_h)
+    sub_impl_centered = Translated(
+      child=sub_impl,
+      trans=kdb.DTrans(kdb.DVector(_snap((sub_w - sub_impl_w) / 2.0),
+                                   _snap((w - sub_impl_h) / 2.0))))
+    sub_cont = _centered_contact_stack(sub_w, w, sub_rect)
+    substrate = Linear(align=None, children=[sub_rect, sub_impl_centered, sub_cont])
+
+    if substrate_side == "left":
+      sub_offset = kdb.DTrans(kdb.DVector(_snap(-pl_res_ext - comp_spacing - sub_w), _snap(0)))
+    elif substrate_side == "right":
+      sub_offset = kdb.DTrans(kdb.DVector(_snap(l + pl_res_ext + comp_spacing), _snap(0)))
+    else:  # both
+      sub_left_offset = kdb.DTrans(kdb.DVector(_snap(-pl_res_ext - comp_spacing - sub_w), _snap(0)))
+      sub_right_offset = kdb.DTrans(kdb.DVector(_snap(l + pl_res_ext + comp_spacing), _snap(0)))
+      comp.append(Translated(child=substrate, trans=sub_left_offset))
+      comp.append(Translated(child=substrate, trans=sub_right_offset))
+    if substrate_side != "both":
+      comp.append(Translated(child=substrate, trans=sub_offset))
+
+  # Guard ring
+  if guard_ring:
+    dnx, dny, dpx, dpy = -pl_res_ext, 0, l + pl_res_ext, w
+    if with_substrate and substrate_side == "left":
+      dnx = -pl_res_ext - comp_spacing - sub_w
+    elif with_substrate and substrate_side == "right":
+      dpx = l + pl_res_ext + comp_spacing + sub_w
+    elif with_substrate and substrate_side == "both":
+      dnx = -pl_res_ext - comp_spacing - sub_w
+      dpx = l + pl_res_ext + comp_spacing + sub_w
+    comp.append(_make_guard_ring(dnx, dny, dpx, dpy))
 
   return Linear(align=None, children=comp)
 
@@ -445,7 +709,9 @@ def make_ppolyf_u_h(model, l, w, marker_layer, implant_layer, sub_implant_layer,
 # ====================================================================
 
 
-def make_well_resistor(model, l, w, marker_layer, well_layer, cmp_impl_layer, sub_implant_layer):
+def make_well_resistor(model, l, w, marker_layer, well_layer, cmp_impl_layer, sub_implant_layer,
+                        with_contacts=True, with_substrate=True, substrate_side="left",
+                        guard_ring=False, with_dnwell=False):
   """Match gdsfactory's draw_well_res."""
   nw_res_ext = 0.48
   nw_res_enc = 0.5
@@ -478,20 +744,35 @@ def make_well_resistor(model, l, w, marker_layer, well_layer, cmp_impl_layer, su
   left_offset = kdb.DTrans(kdb.DVector(_snap(con_xmin), _snap(con_ymin)))
   right_offset = kdb.DTrans(kdb.DVector(_snap(con_xmin + con_spacing), _snap(con_ymin)))
 
-  # Substrate
-  sub_xmin = -nw_res_ext - nw_comp_spacing - sub_w
-  sub_ymin = nw_res_enc
-  substrate = _make_substrate(sub_w, w, sub_implant_layer, pp_enc_cmp, sub_xmin, sub_ymin)
-
   comp = [
     marker,
     Translated(child=well, trans=well_offset),
-    Translated(child=left_terminal, trans=left_offset),
-    Translated(child=right_terminal, trans=right_offset),
-    Translated(child=substrate, trans=kdb.DTrans(kdb.DVector(_snap(sub_xmin), _snap(sub_ymin)))),
   ]
 
-  # DNWell for pwell model
+  if with_contacts:
+    comp.append(Translated(child=left_terminal, trans=left_offset))
+    comp.append(Translated(child=right_terminal, trans=right_offset))
+
+  # Substrate
+  if with_substrate:
+    sub_ymin = nw_res_enc
+    if substrate_side == "left":
+      sub_xmin = -nw_res_ext - nw_comp_spacing - sub_w
+      comp.append(_make_substrate(sub_w, w, sub_implant_layer, pp_enc_cmp,
+                                  _snap(sub_xmin), _snap(sub_ymin)))
+    elif substrate_side == "right":
+      sub_xmin = l + nw_res_ext + nw_comp_spacing
+      comp.append(_make_substrate(sub_w, w, sub_implant_layer, pp_enc_cmp,
+                                  _snap(sub_xmin), _snap(sub_ymin)))
+    else:  # both
+      sub_left_xmin = -nw_res_ext - nw_comp_spacing - sub_w
+      sub_right_xmin = l + nw_res_ext + nw_comp_spacing
+      comp.append(_make_substrate(sub_w, w, sub_implant_layer, pp_enc_cmp,
+                                  _snap(sub_left_xmin), _snap(sub_ymin)))
+      comp.append(_make_substrate(sub_w, w, sub_implant_layer, pp_enc_cmp,
+                                  _snap(sub_right_xmin), _snap(sub_ymin)))
+
+  # DNWell for pwell model (always) or nwell with dnwell flag
   if model == "pwell":
     dn_well = Rect(layer=Layers.dnwell,
                    w=l + 2 * nw_res_ext + 2 * dn_enc_lvpwell,
@@ -499,6 +780,25 @@ def make_well_resistor(model, l, w, marker_layer, well_layer, cmp_impl_layer, su
     dn_offset = kdb.DTrans(kdb.DVector(_snap(-nw_res_ext - dn_enc_lvpwell),
                                        _snap(nw_res_enc - dn_enc_lvpwell)))
     comp.append(Translated(child=dn_well, trans=dn_offset))
+
+  # DNWELL for nwell model when requested
+  if with_dnwell and model == "nwell":
+    dnx = -nw_res_ext - nw_comp_spacing - sub_w if with_substrate and substrate_side in ("left", "both") else -nw_res_ext
+    dpx = l + nw_res_ext + nw_comp_spacing + sub_w if with_substrate and substrate_side in ("right", "both") else l + nw_res_ext
+    comp.append(_make_dnwell_layers(dnx, nw_res_enc, dpx, w + nw_res_enc))
+
+  # Guard ring
+  if guard_ring:
+    dnx = -nw_res_ext - nw_comp_spacing - sub_w if with_substrate and substrate_side in ("left", "both") else -nw_res_ext
+    dpx = l + nw_res_ext + nw_comp_spacing + sub_w if with_substrate and substrate_side in ("right", "both") else l + nw_res_ext
+    dny = nw_res_enc - nw_res_enc
+    dpy = w + nw_res_enc
+    if model == "pwell":
+      dnx -= dn_enc_lvpwell
+      dny -= dn_enc_lvpwell
+      dpx += dn_enc_lvpwell
+      dpy += dn_enc_lvpwell
+    comp.append(_make_guard_ring(dnx, dny, dpx, dpy))
 
   return Linear(align=None, children=comp)
 
@@ -508,11 +808,25 @@ def make_well_resistor(model, l, w, marker_layer, well_layer, cmp_impl_layer, su
 # ====================================================================
 
 
-def make_resistor(model, l=1.0, w=1.0, contacts=0):
+def make_resistor(
+    model, l=1.0, w=1.0,
+    with_contacts=True,
+    with_substrate=True,
+    substrate_side="left",
+    guard_ring=False,
+    with_dnwell=False,
+    n_center_contacts=0,
+    contacts=0,  # deprecated, kept for backward compatibility
+):
   """Parametric resistor generator. Returns a Node tree.
 
-  contacts: currently unused (terminal contacts are generated automatically).
-  Kept for backward compatibility with PCell wrapper.
+  with_contacts: include terminal contacts at both ends (default True)
+  with_substrate: include substrate tap (default True)
+  substrate_side: placement of substrate tap - "left", "right", or "both" (default "left")
+  guard_ring: add P+ guard ring around device (default False)
+  with_dnwell: add DNWELL + LVPWELL enclosure (default False, only for nplus/npolyf/nwell)
+  n_center_contacts: number of intermediate contacts along resistor body (default 0)
+  contacts: deprecated, kept for backward compatibility
   """
   if model not in resistor_type_map:
     raise ValueError(f"Unknown resistor model: {model!r}. "
@@ -535,23 +849,44 @@ def make_resistor(model, l=1.0, w=1.0, contacts=0):
     block_layer = Layers.sab if not _salicided(model) else None
     nwell_layer = Layers.nwell if not _n_type(model) else None
     return make_diffusion_resistor(model, l, w, marker_layer, implant_layer,
-                                   sub_implant_layer, block_layer, nwell_layer)
+                                   sub_implant_layer, block_layer, nwell_layer,
+                                   with_contacts=with_contacts,
+                                   with_substrate=with_substrate,
+                                   substrate_side=substrate_side,
+                                   guard_ring=guard_ring,
+                                   with_dnwell=with_dnwell and _n_type(model),
+                                   n_center_contacts=n_center_contacts)
 
   if model == "ppolyf_u_h":
-    return make_ppolyf_u_h(model, l, w, marker_layer, Layers.pplus, Layers.pplus, Layers.sab)
+    return make_ppolyf_u_h(model, l, w, marker_layer, Layers.pplus, Layers.pplus, Layers.sab,
+                           with_contacts=with_contacts,
+                           with_substrate=with_substrate,
+                           substrate_side=substrate_side,
+                           guard_ring=guard_ring)
 
   if _poly(model):
     implant_layer = Layers.nplus if _n_type(model) else Layers.pplus
     block_layer = Layers.sab if not _salicided(model) else None
     return make_poly_resistor(model, l, w, marker_layer, implant_layer,
-                              Layers.pplus, block_layer)
+                              Layers.pplus, block_layer,
+                              with_contacts=with_contacts,
+                              with_substrate=with_substrate,
+                              substrate_side=substrate_side,
+                              guard_ring=guard_ring,
+                              with_dnwell=with_dnwell and _n_type(model),
+                              n_center_contacts=n_center_contacts)
 
   if model in ("nwell", "pwell"):
     cmp_impl_layer = Layers.nplus if model == "nwell" else Layers.pplus
     sub_implant_layer = Layers.pplus if model == "nwell" else Layers.nplus
     well_layer = Layers.nwell if model == "nwell" else Layers.lvpwell
     return make_well_resistor(model, l, w, marker_layer, well_layer,
-                              cmp_impl_layer, sub_implant_layer)
+                              cmp_impl_layer, sub_implant_layer,
+                              with_contacts=with_contacts,
+                              with_substrate=with_substrate,
+                              substrate_side=substrate_side,
+                              guard_ring=guard_ring,
+                              with_dnwell=with_dnwell and (model == "nwell"))
 
   if model == "schottky":
     body = Rect(layer=res_layer, w=l, h=w, name="body")

@@ -40,8 +40,8 @@ def pytest_addoption(parser):
     parser.addoption(
         "--pymacros-dir",
         action="store",
-        default="cells/klayout/pymacros",
-        help="Path to the pymacros directory",
+        default=None,
+        help="Path to the pymacros directory (default: auto-detected from conftest location)",
     )
     parser.addoption(
         "--regenerate",
@@ -98,7 +98,14 @@ def drc_script_path(request) -> str:
 
 @pytest.fixture(scope="session")
 def pymacros_dir(request) -> Path:
-    return Path(request.config.getoption("--pymacros-dir"))
+    path = request.config.getoption("--pymacros-dir")
+    if path is None:
+        path = Path(__file__).resolve().parent.parent
+    else:
+        path = Path(path)
+        if not path.is_absolute():
+            path = Path(__file__).resolve().parent.parent / path
+    return path.resolve()
 
 
 @pytest.fixture(scope="session")

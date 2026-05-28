@@ -9,12 +9,18 @@ class ResistorPCell(kdb.PCellDeclarationHelper):
     super().__init__()
 
     choices = [(s, s) for s in res_models]
+    side_choices = [("left", 0), ("right", 1), ("both", 2)]
 
-    self.param("_version", self.TypeInt, "Version", hidden=True, default=0)
+    self.param("_version", self.TypeInt, "Version", hidden=True, default=1)
     self.param("model", self.TypeInt, "Resistor Model", choices=choices, default=res_models[0])
     self.param("l", self.TypeDouble, "Length", default=1.0, unit="um")
     self.param("w", self.TypeDouble, "Width", default=1.0, unit="um")
-    self.param("contacts", self.TypeInt, "End Contacts (0=none, 1+with vias)", default=0)
+    self.param("with_contacts", self.TypeBoolean, "Terminal contacts", default=True)
+    self.param("with_substrate", self.TypeBoolean, "Substrate tap", default=True)
+    self.param("substrate_side", self.TypeInt, "Substrate side", choices=side_choices, default=0)
+    self.param("guard_ring", self.TypeBoolean, "Guard ring", default=False)
+    self.param("with_dnwell", self.TypeBoolean, "Deep NWell", default=False)
+    self.param("n_center_contacts", self.TypeInt, "Center contacts", default=0)
 
   def coerce_parameters_impl(self):
     m = self.model
@@ -44,9 +50,21 @@ class ResistorPCell(kdb.PCellDeclarationHelper):
       self.l = max(0.42, self.l)
       self.w = max(0.42, self.w)
 
+    self.n_center_contacts = max(0, self.n_center_contacts)
+
   def display_text_impl(self):
     return "Resistor %s l:%.12g w:%.12g" % (self.model, self.l, self.w)
 
   def produce_impl(self):
-    gen = make_resistor(model=self.model, l=self.l, w=self.w, contacts=self.contacts)
+    gen = make_resistor(
+        model=self.model,
+        l=self.l,
+        w=self.w,
+        with_contacts=self.with_contacts,
+        with_substrate=self.with_substrate,
+        substrate_side=["left", "right", "both"][self.substrate_side],
+        guard_ring=self.guard_ring,
+        with_dnwell=self.with_dnwell,
+        n_center_contacts=self.n_center_contacts,
+    )
     gen.produce(self.cell, kdb.DTrans())
