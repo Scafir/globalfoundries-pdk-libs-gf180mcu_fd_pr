@@ -26,7 +26,7 @@ class Rect(Node):
         fb = enclose.feature_box(enclose_feature)
       self.w = max(w, fb.width())
       self.h = max(h, fb.height())
-      self.etrans = kdb.DTrans(fb.center() - kdb.DPoint(self.w * 0.5, self.h * 0.5))
+      self.etrans = kdb.DTrans(fb.center())
     else:
       self.w = w
       self.h = h
@@ -53,10 +53,13 @@ class Rect(Node):
     self.layer = layer
 
   def bounding_box(self) -> kdb.DBox:
-    return self.etrans * kdb.DBox(-self.enl_l, -self.enl_b, self.w + self.enl_r, self.h + self.enl_t)
+    return self.etrans * kdb.DBox(
+        -self.w/2 - self.enl_l, -self.h/2 - self.enl_b,
+         self.w/2 + self.enl_r,  self.h/2 + self.enl_t
+    )
 
   def bounding_box_for_layer(self, layer) -> kdb.DBox:
-    if self.layer == layer:
+    if self.layer is not None and self.layer == layer:
       return self.bounding_box()
     return kdb.DBox()
 
@@ -72,7 +75,10 @@ class Rect(Node):
       return kdb.DBox(pb.left - self.halo_l, pb.bottom - self.halo_b,
                       pb.right + self.halo_r, pb.top + self.halo_t)
     else:
-      return kdb.DBox(-self.halo_l, -self.halo_b, self.w + self.halo_r, self.h + self.halo_t)
+      return kdb.DBox(
+          -self.w/2 - self.halo_l, -self.h/2 - self.halo_b,
+           self.w/2 + self.halo_r,  self.h/2 + self.halo_t
+      )
 
   def produce(self, cell: kdb.Cell, trans: kdb.DTrans):
     if self.layer is not None:

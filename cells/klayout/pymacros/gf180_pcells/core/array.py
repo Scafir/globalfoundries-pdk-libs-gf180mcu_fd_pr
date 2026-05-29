@@ -34,7 +34,7 @@ class Array(Node):
   
   def bounding_box_for_layer(self, layer) -> kdb.DBox:
     box = self.child.bounding_box_for_layer(layer)
-    if box.is_empty(): return kdb.DBox()
+    if box.empty(): return kdb.DBox()
     px, py = self._pitches()
     return box + box.moved(px * (self.nx - 1), py * (self.ny - 1))
 

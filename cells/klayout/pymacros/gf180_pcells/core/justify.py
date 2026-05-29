@@ -20,6 +20,9 @@ class Justify(Node):
   def bounding_box(self) -> kdb.DBox:
     return self._trans() * self.child.bounding_box()
 
+  def bounding_box_for_layer(self, layer) -> kdb.DBox:
+    return self._trans() * self.child.bounding_box_for_layer(layer)
+
   def pack_box(self) -> kdb.DBox:
     return self._trans() * self.child.pack_box()
 

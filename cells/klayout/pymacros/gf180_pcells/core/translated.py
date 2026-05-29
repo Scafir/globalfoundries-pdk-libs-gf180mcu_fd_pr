@@ -25,5 +25,5 @@ class Translated(Node):
   def ref_point(self, name):
     return self.trans * self.child.ref_point(name)
 
-  def produce(self, cell, trans):
+  def produce(self, cell: kdb.Cell, trans: kdb.DTrans):
     self.child.produce(cell, trans * self.trans)

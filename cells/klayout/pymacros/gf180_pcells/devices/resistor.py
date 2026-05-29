@@ -4,6 +4,7 @@ from ..tech.gf180_layers import Layers
 from ..tech.gf180_rules import Rules
 from ..core.node import Node
 from ..core.array import Array
+from ..core.align import LayerAlign, RefShift
 from ..core.pack import PackRef
 from ..core.rect import Rect
 from ..core.linear import Linear
@@ -118,26 +119,20 @@ def _diffusion_contact_stack(term_w: float, term_h: float):
     metal1 = Justify(child=Rect(layer=Layers.metal1, w=m1_w, h=m1_h), ref_point="C")
 
     stack = Linear(align=None, children=[centered_grid, metal1])
-    return PackRef(child=stack, ref_point="C")
+    return stack
 
 
 # ====================================================================
 # Shared helpers
 # ====================================================================
 
-def _centered_contact_stack(term_w, term_h, parent_node):
-    cw, ch = term_w, term_h
-    cont = _diffusion_contact_stack(cw, ch)
-    return Translated(child=cont, trans=kdb.DTrans(kdb.DVector(_snap(cw / 2.0), _snap(ch / 2.0))))
-
 def _make_substrate(sub_w, sub_h, sub_impl_layer, sub_impl_enc, sub_xmin, sub_ymin):
     """Build a substrate comp + implant + contact stack."""
     sub_rect = Rect(layer=Layers.comp, w=sub_w, h=sub_h)
     sub_impl = Rect(layer=sub_impl_layer, enclose=sub_rect, enl=sub_impl_enc)
-    sub_cont = _centered_contact_stack(sub_w, sub_h, sub_rect)
-    substrate = Linear(align=None, children=[sub_rect, sub_impl, sub_cont])
-    return Translated(child=substrate,
-                      trans=kdb.DTrans(kdb.DVector(_snap(sub_xmin), _snap(sub_ymin))))
+    sub_cont = _diffusion_contact_stack(sub_w, sub_h)
+    substrate = Linear(align="C", children=[sub_rect, sub_impl, sub_cont])
+    return substrate
 
 def _con_polys_size(con_w, con_h):
     """Compute the con_polys bounding box size from terminal + metal1 union.
@@ -259,7 +254,8 @@ def _get_resistor_cfg(model):
         "sub_spacing": 0.72, "sub_w": 0.36, "sub_min_area": 0.203,
         "gr_w": 0.36, "dn_enc": 2.5, "lvpwell_enc": 0.6,
         "with_lvpwell": False, "custom_terminals": False,
-        "custom_sab": False, "sab_area": 2.01, "sab_ext": 0.22
+        "custom_sab": False, "sab_area": 2.01, "sab_ext": 0.22,
+        "sub_ref_layer": None  # DRC reference layer for substrate spacing
     }
     if _diffusion(model):
         cfg.update({
@@ -267,25 +263,29 @@ def _get_resistor_cfg(model):
             "impl_enc": 0.16 if _salicided(model) else 0.18,
             "con_enc": 0.07 if _salicided(model) else 0.0,
             "has_nwell_enc": not _n_type(model),
-        })
+            "sub_ref_layer": Layers.comp
+       })
     elif _poly(model):
         cfg.update({
             "ext": 0.29 if _salicided(model) else 0.66,
             "impl_enc": 0.3,
             "con_enc": 0.07 if _salicided(model) else 0.0,
             "sub_spacing": 0.46 + (0.26 if _n_type(model) else 0.4),
+            "sub_ref_layer": Layers.nplus if _n_type(model) else Layers.pplus,
         })
     elif model == "ppolyf_u_h":
         cfg.update({
             "ext": 0.64, "impl_enc": 0.18, "sub_spacing": 0.7,
             "sub_w": 0.42, "custom_sab": True,
             "sab_area": 2.01, "sab_ext": 0.28, "sab_res_ext_x": 0.1,
-            "resis_enc_x": 1.04, "resis_enc_y": 0.4
+            "resis_enc_x": 1.04, "resis_enc_y": 0.4,
+            "sub_ref_layer": Layers.nplus if _n_type(model) else Layers.pplus,
         })
     elif model in ("nwell", "pwell"):
         cfg.update({
             "ext": 0.48, "impl_enc": 0.12, "sub_spacing": 0.72,
             "custom_terminals": True,
+            "sub_ref_layer": Layers.nplus if _n_type(model) else Layers.pplus,
         })
     return cfg
 
@@ -295,46 +295,34 @@ def _get_resistor_cfg(model):
 # ====================================================================
 
 def _build_diff_poly_core(model, l, w, cfg, with_contacts):
-    print("ASDASDASD")
     ext, impl_enc, con_enc = cfg["ext"], cfg["impl_enc"], cfg["con_enc"]
     marker_layer = resistor_type_map[model][2]
     active_layer = Layers.comp if _diffusion(model) else Layers.poly
     impl_layer = Layers.nplus if _n_type(model) else Layers.pplus
 
-    # 1. Core stack (all centered at origin)
+    # Core stack (all centered at origin)
     marker = Rect(layer=marker_layer, w=l, h=w, name="marker")
     active = Rect(layer=active_layer, enclose=marker, enl_l=ext, enl_r=ext)
     implant = Rect(layer=impl_layer, enclose=active, enl=impl_enc)
-    core = PackRef(child=Linear(align="C", children=[marker, active, implant]), ref_point="C")
+    core = Linear(align="C", children=[marker, active, implant])
 
-    # 2. SAB (if unsalicided) - vertically centered with core
+    # SAB (if unsalicided) - vertically centered with core
     if not _salicided(model):
         sab_h = max(w + 2 * cfg["sab_ext"], _snap(cfg["sab_area"] / l))
         sab = Justify(child=Rect(layer=Layers.sab, w=l, h=sab_h), ref_point="C")
         core = Linear(align="C", children=[core, sab])
-    core = PackRef(child=core, ref_point="C")
 
     # 3. Side contact helper: aligns inner edge to active boundary
-    def _side_contact(side: str):
-        term_w = ext + con_enc
-        cont = _diffusion_contact_stack(term_w, w)
-        
-        # Normalize to center, align inner edge to origin, then shift to boundary
-        boundary_x = -5.0 if side == "left" else 5.0
-        
-        return Translated(
-            child=cont,
-            trans=kdb.DTrans(kdb.DVector(boundary_x, 5.0))
-        )
+    left_cont = _diffusion_contact_stack(ext + con_enc, w)
+    right_cont = _diffusion_contact_stack(ext + con_enc, w)
 
-    components = []
-    components.append(core)
+    # Align on CONTACT layer, apply spacing offsets
+    left_aligned  = RefShift(LayerAlign(left_cont, Layers.contact))
+    right_aligned = RefShift(LayerAlign(right_cont, Layers.contact))
 
-    if with_contacts:
-        components.append(_side_contact("left"))
-        components.append(_side_contact("right"))
-
-    return Linear(children=components)
+    # Chain: left | core | right
+    assembly = Linear(align="HC", children=[left_aligned, core, right_aligned])
+    return Justify(child=assembly, ref_point="C")
 
 def _build_well_core(model, l, w, cfg, with_contacts):
     children = []
@@ -424,24 +412,48 @@ def _build_ppolyf_u_h_core(model, l, w, cfg, with_contacts):
 # ====================================================================
 
 def _apply_substrate(children, cfg, model, side):
-    box = children.bounding_box_for_layer(Layers.comp)
-    xmin, ymin, xmax, ymax = box.left, box.bottom, box.right, box.top
+    ref_layer = cfg.get("sub_ref_layer")
+    if ref_layer is None:
+        return children  # Skip for metal or models without substrate rules
+        
+    box = children.bounding_box_for_layer(ref_layer)
+    if box.empty():
+        raise ValueError("Cannot apply substrate: missing reference layer")
+        
+    # 1. Dimensions & implant config
     sub_w = cfg["sub_w"]
-    sub_h_raw = max(ymax - ymin, round(cfg["sub_min_area"] / sub_w, 3))
-    sub_ymin = ymin + (ymax - ymin - sub_h_raw) / 2.0
+    sub_h_raw = max(box.height(), round(cfg["sub_min_area"] / sub_w, 3))
     sub_impl_layer = Layers.pplus if _n_type(model) else Layers.nplus
     impl_enc = 0.16 if model in ("nwell", "pwell") else cfg["impl_enc"]
-
-    sides = ["left", "right"] if side == "both" else [side]
-
-    substrate_contact = []
-    for s in sides:
-        sub_xmin = xmin - cfg["sub_spacing"] - sub_w if s == "right" else xmax + cfg["sub_spacing"]
-        substrate_contact.append(_make_substrate(sub_w, sub_h_raw, sub_impl_layer, impl_enc,
-                                        _snap(sub_xmin), _snap(sub_ymin)))
-        if s == "right": xmin = sub_xmin
-        else: xmax = sub_xmin + sub_w
-    return Linear(align=None, children=[children]+substrate_contact)
+    
+    # 2. Build a centered substrate stack (no Translated needed)
+    def _build_centered_sub():
+        sub_rect = Rect(layer=Layers.comp, w=sub_w, h=sub_h_raw)
+        sub_impl = Rect(layer=sub_impl_layer, enclose=sub_rect, enl=impl_enc)
+        sub_cont = _diffusion_contact_stack(sub_w, sub_h_raw)
+        return Linear(align=None, children=[sub_rect, sub_impl, sub_cont])
+        
+    # 3. Declarative alignment chain
+    chain = []
+    spacing = cfg["sub_spacing"]
+    
+    if side in ("right", "both"):
+        left_sub = _build_centered_sub()
+        # Align on comp layer, pull reference point left by spacing
+        left_aligned = RefShift(LayerAlign(left_sub, Layers.comp), dx=spacing, dy=0)
+        chain.append(left_aligned)
+        
+    chain.append(children)  # Resistor core
+    
+    if side in ("left", "both"):
+        right_sub = _build_centered_sub()
+        # Align on comp layer, push reference point right by spacing
+        right_aligned = RefShift(LayerAlign(right_sub, Layers.comp), dx=-spacing, dy=0)
+        chain.append(right_aligned)
+        
+    # 4. Chain horizontally & re-center
+    assembly = Linear(align="HC", children=chain)
+    return Justify(child=assembly, ref_point="C")
 
 def _apply_nwell_enclosure(children, cfg):
     """Add N WELL enclosure (for pplus diffusion resistors)."""
