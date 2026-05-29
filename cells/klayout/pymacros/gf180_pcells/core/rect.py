@@ -56,7 +56,6 @@ class Rect(Node):
     return self.etrans * kdb.DBox(-self.enl_l, -self.enl_b, self.w + self.enl_r, self.h + self.enl_t)
 
   def bounding_box_for_layer(self, layer) -> kdb.DBox:
-    print("In rect")
     if self.layer == layer:
       return self.bounding_box()
     return kdb.DBox()

@@ -3,6 +3,8 @@ import pya as kdb
 from ..tech.gf180_layers import Layers
 from ..tech.gf180_rules import Rules
 from ..core.node import Node
+from ..core.array import Array
+from ..core.pack import PackRef
 from ..core.rect import Rect
 from ..core.linear import Linear
 from ..core.justify import Justify
@@ -71,59 +73,52 @@ def _snap(v):
 
 _CON_SIZE = 0.22
 _CON_ENC = 0.08
-_CON_SPC = 0.29
+_CON_SPC = 0.25
+_CON_SPC_ARRAY = 0.28
 _M1_AREA_MIN = 0.1444
 
 
-def _diffusion_contact_stack(term_w, term_h):
-    """Create contact+metal1 stack centered at origin, matching gdsfactory via_stack."""
+def _diffusion_contact_stack(term_w: float, term_h: float):
     nc = max(1, int(term_w // (_CON_SIZE + _CON_SPC)))
-    leftover_x = term_w - nc * _CON_SIZE - max(0, nc - 1) * _CON_SPC
-    if nc > 1 and leftover_x / 2 < _CON_ENC - 1e-10:
-        nc -= 1
+    if nc > 1:
         leftover_x = term_w - nc * _CON_SIZE - max(0, nc - 1) * _CON_SPC
+        if leftover_x / 2 < _CON_ENC - 1e-10:
+            nc -= 1
 
     nr = max(1, int(term_h // (_CON_SIZE + _CON_SPC)))
-    leftover_y = term_h - nr * _CON_SIZE - max(0, nr - 1) * _CON_SPC
-    if nr > 1 and leftover_y / 2 < _CON_ENC - 1e-10:
-        nr -= 1
+    if nr > 1:
         leftover_y = term_h - nr * _CON_SIZE - max(0, nr - 1) * _CON_SPC
+        if leftover_y / 2 < _CON_ENC - 1e-10:
+            nr -= 1
+   
+    spacing = _CON_SPC
+    if (nc >= 4) and (nr >= 4):
+        spacing = _CON_SPC_ARRAY
 
-    grid_w = nc * _CON_SIZE + max(0, nc - 1) * _CON_SPC
-    grid_h = nr * _CON_SIZE + max(0, nr - 1) * _CON_SPC
+    pitch = _CON_SIZE + spacing
 
+    # Pitch container defines spacing; contact is centered within each cell
+    pitch_container = Justify(child=Rect(layer=None, w=pitch, h=pitch), ref_point="C")
+    contact = Justify(child=Rect(layer=Layers.contact, w=_CON_SIZE, h=_CON_SIZE), ref_point="C")
+    cell = Linear(align=None, children=[pitch_container, contact])
+
+    grid = Array(child=cell, nx=nc, ny=nr)
+
+    # Center the entire grid at origin
+    centered_grid = Justify(child=grid, ref_point="C")
+
+    # Metal1 enclosure
+    grid_w = nc * _CON_SIZE + max(0, nc - 1) * spacing
+    grid_h = nr * _CON_SIZE + max(0, nr - 1) * spacing
     m1_w = grid_w + 2 * _CON_ENC
     m1_h = grid_h + 2 * _CON_ENC
-    if m1_w * m1_h < _M1_AREA_MIN - 1e-10:
+    if m1_w * m1_h < _M1_AREA_MIN:
         m1_h = _M1_AREA_MIN / m1_w
 
-    comp = []
+    metal1 = Justify(child=Rect(layer=Layers.metal1, w=m1_w, h=m1_h), ref_point="C")
 
-    # Individual contact Rects
-    if nc == 1 and nr == 1:
-        comp.append(Rect(layer=Layers.contact,
-                         w=_CON_SIZE, h=_CON_SIZE,
-                         enl_l=_CON_SIZE / 2, enl_r=-_CON_SIZE / 2,
-                         enl_b=_CON_SIZE / 2, enl_t=-_CON_SIZE / 2))
-    else:
-        gx0 = -grid_w / 2
-        gy0 = -grid_h / 2
-        for r in range(nr):
-            for cc in range(nc):
-                cx = gx0 + cc * (_CON_SIZE + _CON_SPC) + _CON_SIZE / 2
-                cy = gy0 + r * (_CON_SIZE + _CON_SPC) + _CON_SIZE / 2
-                contact = Rect(layer=Layers.contact, w=_CON_SIZE, h=_CON_SIZE,
-                               enl_l=_CON_SIZE / 2, enl_r=-_CON_SIZE / 2,
-                               enl_b=_CON_SIZE / 2, enl_t=-_CON_SIZE / 2)
-                comp.append(Translated(child=contact,
-                                       trans=kdb.DTrans(kdb.DVector(cx, cy))))
-
-    comp.append(Rect(layer=Layers.metal1,
-                     w=m1_w, h=m1_h,
-                     enl_l=m1_w / 2, enl_r=-m1_w / 2,
-                     enl_b=m1_h / 2, enl_t=-m1_h / 2))
-
-    return Linear(align=None, children=comp)
+    stack = Linear(align=None, children=[centered_grid, metal1])
+    return PackRef(child=stack, ref_point="C")
 
 
 # ====================================================================
@@ -299,38 +294,47 @@ def _get_resistor_cfg(model):
 # Core Builders (return children + bounds)
 # ====================================================================
 
-def _build_diff_poly_core(model, l, w, cfg, with_contacts, n_center_contacts):
-    children = []
+def _build_diff_poly_core(model, l, w, cfg, with_contacts):
+    print("ASDASDASD")
     ext, impl_enc, con_enc = cfg["ext"], cfg["impl_enc"], cfg["con_enc"]
     marker_layer = resistor_type_map[model][2]
     active_layer = Layers.comp if _diffusion(model) else Layers.poly
     impl_layer = Layers.nplus if _n_type(model) else Layers.pplus
 
+    # 1. Core stack (all centered at origin)
     marker = Rect(layer=marker_layer, w=l, h=w, name="marker")
     active = Rect(layer=active_layer, enclose=marker, enl_l=ext, enl_r=ext)
     implant = Rect(layer=impl_layer, enclose=active, enl=impl_enc)
-    children.extend([marker, active, implant])
+    core = PackRef(child=Linear(align="C", children=[marker, active, implant]), ref_point="C")
 
-    # SAB for unsalicided
+    # 2. SAB (if unsalicided) - vertically centered with core
     if not _salicided(model):
         sab_h = max(w + 2 * cfg["sab_ext"], _snap(cfg["sab_area"] / l))
-        sab = Rect(layer=Layers.sab, w=l, h=sab_h)
-        children.append(Translated(child=sab, trans=kdb.DTrans(kdb.DVector(0, _snap((w - sab_h) / 2.0)))))
+        sab = Justify(child=Rect(layer=Layers.sab, w=l, h=sab_h), ref_point="C")
+        core = Linear(align="C", children=[core, sab])
+    core = PackRef(child=core, ref_point="C")
 
-    # Terminals
-    if with_contacts:
+    # 3. Side contact helper: aligns inner edge to active boundary
+    def _side_contact(side: str):
         term_w = ext + con_enc
-        left_cx = _snap((-ext + con_enc) / 2)
-        right_cx = _snap(l + (ext - con_enc) / 2)
-        cy = _snap(w / 2)
-        left_cont = _diffusion_contact_stack(term_w, w)
-        right_cont = _diffusion_contact_stack(term_w, w)
-        children.extend([
-            Translated(child=left_cont, trans=kdb.DTrans(kdb.DVector(left_cx, cy))),
-            Translated(child=right_cont, trans=kdb.DTrans(kdb.DVector(right_cx, cy)))
-        ])
+        cont = _diffusion_contact_stack(term_w, w)
+        
+        # Normalize to center, align inner edge to origin, then shift to boundary
+        boundary_x = -5.0 if side == "left" else 5.0
+        
+        return Translated(
+            child=cont,
+            trans=kdb.DTrans(kdb.DVector(boundary_x, 5.0))
+        )
 
-    return Linear(align=None, children=children)
+    components = []
+    components.append(core)
+
+    if with_contacts:
+        components.append(_side_contact("left"))
+        components.append(_side_contact("right"))
+
+    return Linear(children=components)
 
 def _build_well_core(model, l, w, cfg, with_contacts):
     children = []
@@ -561,7 +565,7 @@ def make_resistor(
         children = _build_ppolyf_u_h_core(model, l, w, cfg, with_contacts)
 
     else:
-        children = _build_diff_poly_core(model, l, w, cfg, with_contacts, n_center_contacts)
+        children = _build_diff_poly_core(model, l, w, cfg, with_contacts)
 
     # 2. Sequential peripheral pipeline
     if with_substrate:

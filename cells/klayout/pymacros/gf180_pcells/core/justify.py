@@ -6,6 +6,10 @@ from .node import Node
 class Justify(Node):
 
   def __init__(self, ref_point: str = "C", child: Node = None):
+
+    """
+    Aligns the node at the given reference point (the pack box counts)
+    """
     self.rp = ref_point
     self.child = child
 
@@ -27,3 +31,4 @@ class Justify(Node):
 
   def produce(self, cell: kdb.Cell, trans: kdb.DTrans):
     self.child.produce(cell, trans * self._trans())
+
