@@ -13,6 +13,9 @@ class Translated(Node):
   def bounding_box(self):
     return self.trans * self.child.bounding_box()
 
+  def bounding_box_for_layer(self, layer) -> kdb.DBox:
+    return self.trans * self.child.bounding_box_for_layer(layer)
+
   def pack_box(self):
     return self.trans * self.child.pack_box()
 

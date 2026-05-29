@@ -50,6 +50,13 @@ class Linear(Node):
     for i in range(0, len(self.children)):
       box += self.trans[i] * self.children[i].bounding_box()
     return box
+  
+  def bounding_box_for_layer(self, layer) -> kdb.DBox:
+    box = kdb.DBox()
+    for i in range(len(self.children)):
+      box += self.trans[i] * self.children[i].bounding_box_for_layer(layer)
+
+    return box
 
   def pack_box(self) -> kdb.DBox:
     box = kdb.DBox()

@@ -20,6 +20,10 @@ class Node:
 
   def bounding_box(self) -> kdb.DBox:
     return kdb.DBox()
+  
+  def bounding_box_for_layer(self, layer) -> kdb.DBox:
+    """Compute bounding box for a specific layer across the node tree."""
+    return kdb.DBox()
 
   def pack_box(self) -> kdb.DBox:
     return kdb.DBox()

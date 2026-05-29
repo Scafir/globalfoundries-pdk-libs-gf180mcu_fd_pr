@@ -10,6 +10,9 @@ class Delegate(Node):
 
   def bounding_box(self) -> kdb.DBox:
     return self.child.bounding_box()
+  
+  def bounding_box_for_layer(self, layer) -> kdb.DBox:
+    return self.child.bounding_box_for_layer(layer)
 
   def pack_box(self) -> kdb.DBox:
     return self.child.pack_box()

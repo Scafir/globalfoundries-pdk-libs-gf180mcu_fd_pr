@@ -47,8 +47,6 @@ for key in dir(sys.modules[__name__]):
         value = getattr(sys.modules[__name__], key)
         params[param_name] = _coerce(value)
 
-print("PARAMS: "+str(params))
-
 cell_index = src_layout.add_pcell_variant(src_layout.pcell_id(pcell_name), params)
 pcell_cell = src_layout.cell(cell_index)
 

@@ -3,6 +3,7 @@ import os
 import subprocess
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
+from collections import defaultdict
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +23,6 @@ def generate_and_export(
     3. Flatten and export to GDS
     """
     script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "generate_pcell.py")
-    print("AAAAAAA")
     cmd = [
         "klayout", "-b", "-r", script,
         "-rd", f"pymacros_dir={pymacros_dir}",
@@ -46,10 +46,11 @@ def generate_and_export(
     return True
 
 
-def compare(actual_path: str, golden_path: str) -> Tuple[bool, List[str]]:
+def compare(actual_path: str, golden_path: str, area_tol: float = 1e-4) -> Tuple[bool, List[str]]:
     """Compare two GDS files using gdstk polygon-level diff.
-
-    Returns (passed, diffs). Empty diffs means identical.
+    
+    Uses symmetric boolean difference (XOR) to find actual geometric mismatches,
+    ignoring polygon splits/merges and sub-grid float artifacts.
     """
     try:
         import gdstk
@@ -61,7 +62,6 @@ def compare(actual_path: str, golden_path: str) -> Tuple[bool, List[str]]:
 
     diffs: List[str] = []
 
-    # Compare top cell count
     if len(actual_lib.top_level()) != len(golden_lib.top_level()):
         diffs.append(
             f"Top cell count: actual={len(actual_lib.top_level())}, "
@@ -72,12 +72,11 @@ def compare(actual_path: str, golden_path: str) -> Tuple[bool, List[str]]:
     actual_top = actual_lib.top_level()[0]
     golden_top = golden_lib.top_level()[0]
 
-    # Get all polygons (flattened) and group by layer
     def _group_by_layer(cell):
-        from collections import defaultdict
         groups = defaultdict(list)
         for poly in cell.get_polygons(True):
-            groups[poly.layer].append(poly)
+            if poly.area() > 0:  # Skip degenerate zero-area polygons
+                groups[poly.layer].append(poly)
         return groups
 
     actual_polys = _group_by_layer(actual_top)
@@ -97,16 +96,27 @@ def compare(actual_path: str, golden_path: str) -> Tuple[bool, List[str]]:
     if missing_layers or extra_layers:
         return False, diffs
 
-    # Compare polygon counts per layer
     common_layers = sorted(actual_layers & golden_layers)
     for layer in common_layers:
-        a_count = len(actual_polys[layer])
-        g_count = len(golden_polys[layer])
+        a_polys = actual_polys[layer]
+        g_polys = golden_polys[layer]
 
-        if a_count != g_count:
+        if not a_polys and not g_polys:
+            continue
+        if not a_polys:
+            diffs.append(f"Layer {layer}: missing in actual")
+            continue
+        if not g_polys:
+            diffs.append(f"Layer {layer}: missing in golden")
+            continue
+
+        diff_polys = gdstk.boolean(a_polys, g_polys, 'xor')
+        total_diff_area = sum(p.area() for p in diff_polys)
+
+        if total_diff_area > area_tol:
             diffs.append(
-                f"Layer {layer}: polygon count mismatch "
-                f"(actual={a_count}, golden={g_count})"
+                f"Layer {layer}: geometric mismatch "
+                f"(diff area={total_diff_area:.6f}, actual_polys={len(a_polys)}, golden_polys={len(g_polys)})"
             )
 
     passed = len(diffs) == 0
