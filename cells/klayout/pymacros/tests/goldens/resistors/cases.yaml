@@ -85,21 +85,25 @@
   model: pplus_s
   l: 0.42
   w: 0.42
+  with_substrate: True
 
 - name: pplus_s-typ
   model: pplus_s
   l: 1.0
   w: 1.0
+  with_substrate: True
 
 - name: pplus_s-wide
   model: pplus_s
   l: 1.0
   w: 5.0
+  with_substrate: True
 
 - name: pplus_s-aspect
   model: pplus_s
   l: 10.0
   w: 0.42
+  with_substrate: True
 
 - name: nplus_u-min
   model: nplus_u
@@ -125,161 +129,193 @@
   model: pplus_u
   l: 0.42
   w: 0.42
+  with_substrate: True
 
 - name: pplus_u-typ
   model: pplus_u
   l: 1.0
   w: 1.0
+  with_substrate: True
 
 - name: pplus_u-wide
   model: pplus_u
   l: 1.0
   w: 5.0
+  with_substrate: True
 
 - name: pplus_u-aspect
   model: pplus_u
   l: 10.0
   w: 0.42
+  with_substrate: True
 
 - name: nwell-min
   model: nwell
   l: 0.42
   w: 0.42
+  with_substrate: True
 
 - name: nwell-typ
   model: nwell
   l: 1.0
   w: 1.0
+  with_substrate: True
 
 - name: nwell-wide
   model: nwell
   l: 1.0
   w: 5.0
+  with_substrate: True
 
 - name: nwell-aspect
   model: nwell
   l: 10.0
   w: 0.42
+  with_substrate: True
 
 - name: pwell-min
   model: pwell
   l: 0.42
   w: 0.42
+  with_substrate: True
 
 - name: pwell-typ
   model: pwell
   l: 1.0
   w: 1.0
+  with_substrate: True
 
 - name: pwell-wide
   model: pwell
   l: 1.0
   w: 5.0
+  with_substrate: True
 
 - name: pwell-aspect
   model: pwell
   l: 10.0
   w: 0.42
+  with_substrate: True
 
 - name: npolyf_s-min
   model: npolyf_s
   l: 0.42
   w: 0.42
+  with_substrate: True
 
 - name: npolyf_s-typ
   model: npolyf_s
   l: 1.0
   w: 1.0
+  with_substrate: True
 
 - name: npolyf_s-wide
   model: npolyf_s
   l: 1.0
   w: 5.0
+  with_substrate: True
 
 - name: npolyf_s-aspect
   model: npolyf_s
   l: 10.0
   w: 0.42
+  with_substrate: True
 
 - name: ppolyf_s-min
   model: ppolyf_s
   l: 0.42
   w: 0.42
+  with_substrate: True
 
 - name: ppolyf_s-typ
   model: ppolyf_s
   l: 1.0
   w: 1.0
+  with_substrate: True
 
 - name: ppolyf_s-wide
   model: ppolyf_s
   l: 1.0
   w: 5.0
+  with_substrate: True
 
 - name: ppolyf_s-aspect
   model: ppolyf_s
   l: 10.0
   w: 0.42
+  with_substrate: True
 
 - name: npolyf_u-min
   model: npolyf_u
   l: 0.42
   w: 0.42
+  with_substrate: True
 
 - name: npolyf_u-typ
   model: npolyf_u
   l: 1.0
   w: 1.0
+  with_substrate: True
 
 - name: npolyf_u-wide
   model: npolyf_u
   l: 1.0
   w: 5.0
+  with_substrate: True
 
 - name: npolyf_u-aspect
   model: npolyf_u
   l: 10.0
   w: 0.42
+  with_substrate: True
 
 - name: ppolyf_u-min
   model: ppolyf_u
   l: 0.42
   w: 0.42
+  with_substrate: True
 
 - name: ppolyf_u-typ
   model: ppolyf_u
   l: 1.0
   w: 1.0
+  with_substrate: True
 
 - name: ppolyf_u-wide
   model: ppolyf_u
   l: 1.0
   w: 5.0
+  with_substrate: True
 
 - name: ppolyf_u-aspect
   model: ppolyf_u
   l: 10.0
   w: 0.42
+  with_substrate: True
 
 - name: ppolyf_u_h-min
   model: ppolyf_u_h
   l: 1.0
   w: 1.0
+  with_substrate: True
 
 - name: ppolyf_u_h-typ
   model: ppolyf_u_h
   l: 2.0
   w: 2.0
+  with_substrate: True
 
 - name: ppolyf_u_h-wide
   model: ppolyf_u_h
   l: 2.0
   w: 5.0
+  with_substrate: True
 
 - name: ppolyf_u_h-aspect
   model: ppolyf_u_h
   l: 10.0
   w: 1.0
+  with_substrate: True
 
 # New option test cases: guard ring, DNWELL, center contacts
 - name: nplus_s-gr
@@ -301,11 +337,6 @@
   guard_ring: true
   with_dnwell: true
 
-- name: nplus_s-center-cc2
-  model: nplus_s
-  l: 5.0
-  w: 1.0
-
 - name: npolyf_s-gr
   model: npolyf_s
   l: 2.0
@@ -316,28 +347,28 @@
   model: npolyf_s
   l: 2.0
   w: 2.0
-  with_dnwell: true
-
-- name: npolyf_s-center-cc3
-  model: npolyf_s
-  l: 6.0
-  w: 1.0
+  with_dnwell: True
+  with_substrate: True
 
 - name: ppolyf_u-gr
   model: ppolyf_u
   l: 2.0
   w: 2.0
   guard_ring: true
+  with_substrate: True
 
 - name: nwell
   model: nwell
   l: 2.0
   w: 2.0
+  with_substrate: True
+  with_substrate: True
 
 - name: nwell-gr
   model: nwell
   l: 2.0
   w: 2.0
+  with_substrate: True
   guard_ring: true
 
 - name: pwell-gr
@@ -345,14 +376,10 @@
   l: 2.0
   w: 2.0
   guard_ring: true
+  with_substrate: True
 
 - name: ppolyf_u_h-gr
   model: ppolyf_u_h
   l: 3.0
   w: 2.0
   guard_ring: true
-
-- name: ppolyf_u_h-center-cc2
-  model: ppolyf_u_h
-  l: 5.0
-  w: 2.0

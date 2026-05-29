@@ -15,12 +15,12 @@ def test_pcell_drc(pcell_testcase, pymacros_dir, drc_script_path, output_dir):
         pymacros_dir,
         "gf180_pcells",
         "Resistor",
-        pcell_testcase.nat_params,
+        pcell_testcase.params,
         gds_path,
     )
     assert ok, f"Failed to generate GDS for DRC: {pcell_testcase.name}"
 
-    result = run_drc(gds_path, drc_script_path, pcell_testcase.model, output_dir)
+    result = run_drc(gds_path, drc_script_path, output_dir)
 
     if not result.passed:
         logging.error(

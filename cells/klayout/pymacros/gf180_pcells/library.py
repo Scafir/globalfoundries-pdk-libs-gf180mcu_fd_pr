@@ -20,11 +20,7 @@ under the library name "gf180_pcells".
 
 import pya
 
-from .pcells.contact_pcell import ContactPCell
-from .pcells.mosfet_pcell import MOSFETPCell
 from .pcells.resistor_pcell import ResistorPCell
-from .pcells.diode_pcell import DiodePCell
-from .pcells.capacitor_pcell import CapMOSPCell, CapMIMPCell
 
 
 class gf180_pcells(pya.Library):
@@ -37,11 +33,6 @@ class gf180_pcells(pya.Library):
     def __init__(self):
         self.description = "GF180MCU Native PCells"
 
-        self.layout().register_pcell("MOSFET", MOSFETPCell())
         self.layout().register_pcell("Resistor", ResistorPCell())
-        self.layout().register_pcell("Contact", ContactPCell())
-        self.layout().register_pcell("Diode", DiodePCell())
-        self.layout().register_pcell("CapMOS", CapMOSPCell())
-        self.layout().register_pcell("CapMIM", CapMIMPCell())
 
         self.register("gf180_pcells")

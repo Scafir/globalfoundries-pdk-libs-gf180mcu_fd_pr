@@ -15,7 +15,7 @@ def test_pcell_compare(pcell_testcase, pymacros_dir, output_dir):
         pymacros_dir,
         "gf180_pcells",
         "Resistor",
-        pcell_testcase.nat_params,
+        pcell_testcase.params,
         actual_path,
     )
     assert ok, f"Failed to generate GDS for {pcell_testcase.name}"

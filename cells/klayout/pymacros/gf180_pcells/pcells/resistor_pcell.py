@@ -16,7 +16,7 @@ class ResistorPCell(kdb.PCellDeclarationHelper):
     self.param("l", self.TypeDouble, "Length", default=1.0, unit="um")
     self.param("w", self.TypeDouble, "Width", default=1.0, unit="um")
     self.param("with_contacts", self.TypeBoolean, "Terminal contacts", default=True)
-    self.param("with_substrate", self.TypeBoolean, "Substrate tap", default=True)
+    self.param("with_substrate", self.TypeBoolean, "Substrate tap", default=False)
     self.param("substrate_side", self.TypeInt, "Substrate side", choices=side_choices, default=0)
     self.param("guard_ring", self.TypeBoolean, "Guard ring", default=False)
     self.param("with_dnwell", self.TypeBoolean, "Deep NWell", default=False)

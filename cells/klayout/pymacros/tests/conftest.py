@@ -13,25 +13,15 @@ class PCellTestCase:
     """A single PCell test case discovered from a cases.yaml file."""
     name: str
     pcell_type: str
-    model: str
-    l: float
-    w: float
     goldens_dir: str
-    extra_params: Dict = field(default_factory=dict)
+    params: Dict[str, Any] = field(default_factory=dict)
 
     @property
     def golden_path(self) -> str:
-        return os.path.join(self.goldens_dir, f"{self.name}_ref.gds")
+        return Path(self.goldens_dir) / f"{self.name}_ref.gds"
 
     def generated_gds_path(self, output_dir: str) -> str:
-        """Path for the generated GDS file, shared between compare and DRC tests."""
-        return os.path.join(output_dir, f"{self.name}_pcell.gds")
-
-    @property
-    def nat_params(self) -> Dict:
-        params = {"model": self.model, "l": self.l, "w": self.w}
-        params.update(self.extra_params)
-        return params
+        return Path(output_dir) / f"{self.name}_pcell.gds"
 
 
 def pytest_addoption(parser):
@@ -75,14 +65,13 @@ def pytest_generate_tests(metafunc):
             cases = yaml.safe_load(f) or []
 
         for case in cases:
+            params = {k: v for k, v in case.items() if k != "name"}
+
             tc = PCellTestCase(
                 name=case["name"],
                 pcell_type=pcell_type,
-                model=case["model"],
-                l=case["l"],
-                w=case["w"],
                 goldens_dir=str(cases_file.parent),
-                extra_params=case.get("extra", {}),
+                params=params,
             )
             testcases.append(tc)
 

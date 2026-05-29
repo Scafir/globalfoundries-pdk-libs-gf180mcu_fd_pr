@@ -22,7 +22,7 @@ def generate_and_export(
     3. Flatten and export to GDS
     """
     script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "generate_pcell.py")
-
+    print("AAAAAAA")
     cmd = [
         "klayout", "-b", "-r", script,
         "-rd", f"pymacros_dir={pymacros_dir}",
@@ -34,9 +34,9 @@ def generate_and_export(
     ]
 
     logger.info("Generating %s: %s", pcell_name, os.path.basename(output_path))
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+    result = subprocess.run(cmd, timeout=60)
     if result.returncode != 0:
-        logger.error("KLayout error: %s", result.stderr[-500:])
+        logger.error("KLayout error: %s")
         return False
 
     if not os.path.exists(output_path):

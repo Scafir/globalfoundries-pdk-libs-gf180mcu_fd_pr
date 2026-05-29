@@ -13,19 +13,11 @@ import pya
 pymacros_dir = os.path.abspath(pymacros_dir)
 sys.path.insert(0, pymacros_dir)
 
-import cells
-gf_lib_instance = cells.gf180mcu()
-
 import gf180_pcells
 
 nat_lib = pya.Library()
 nat_lib.description = "GF180 Native PCells"
-nat_lib.layout().register_pcell("MOSFET", gf180_pcells.MOSFETPCell())
 nat_lib.layout().register_pcell("Resistor", gf180_pcells.ResistorPCell())
-nat_lib.layout().register_pcell("Contact", gf180_pcells.ContactPCell())
-nat_lib.layout().register_pcell("Diode", gf180_pcells.DiodePCell())
-nat_lib.layout().register_pcell("CapMOS", gf180_pcells.CapMOSPCell())
-nat_lib.layout().register_pcell("CapMIM", gf180_pcells.CapMIMPCell())
 nat_lib.register(lib_name)
 
 lib = pya.Library.library_by_name(lib_name)
@@ -54,6 +46,8 @@ for key in dir(sys.modules[__name__]):
         param_name = key[6:]
         value = getattr(sys.modules[__name__], key)
         params[param_name] = _coerce(value)
+
+print("PARAMS: "+str(params))
 
 cell_index = src_layout.add_pcell_variant(src_layout.pcell_id(pcell_name), params)
 pcell_cell = src_layout.cell(cell_index)
