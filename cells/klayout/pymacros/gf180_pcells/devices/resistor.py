@@ -201,75 +201,91 @@ def _contact_positions_on_edge(start, end, size, spacing):
   return [first + i * (size + spacing) + size / 2 for i in range(n)]
 
 
-def _make_guard_ring(device_xmin, device_ymin, device_xmax, device_ymax, gr_w=0.36):
-  """Create a P+ guard ring: comp ring + pplus implant + contacts + metal1.
+def _make_guard_ring(inner_xmin, inner_ymin, inner_xmax, inner_ymax, gr_w=0.36):
+  """Create a P+ guard ring matching gdsfactory pcmpgr_gen.
 
-  Built as four strip-rects per layer (top/bottom/left/right).
+  The guard ring is a ring between outer and inner rectangles:
+    inner = provided (DNWELL + pcmpgr_enc_dn)
+    outer = inner + gr_w on all sides
+
+  The ring consists of: comp (outer-inner), pplus (enclosure on both sides),
+  contacts (placed at inner rect edges, x-range limited to inner rect),
+  and metal1 (same as comp ring).
+
+  Matches gdsfactory boolean-based guard ring geometry.
   """
   comp_pp_enc = 0.16
   con_size = 0.22
   con_sp = 0.28
-  m1_enc = 0.08
+  con_comp_enc = 0.07
 
-  rxmin = device_xmin - gr_w
-  rymin = device_ymin - gr_w
-  rxmax = device_xmax + gr_w
-  rymax = device_ymax + gr_w
-  rw = rxmax - rxmin
-  rh = rymax - rymin
+  # Outer rect = inner + gr_w
+  oxmin = inner_xmin - gr_w
+  oymin = inner_ymin - gr_w
+  oxmax = inner_xmax + gr_w
+  oymax = inner_ymax + gr_w
 
-  impl_xmin = rxmin - comp_pp_enc
-  impl_ymin = rymin - comp_pp_enc
-  impl_w = rw + 2 * comp_pp_enc
-  impl_h = rh + 2 * comp_pp_enc
-  impl_ymax = impl_ymin + impl_h
-  impl_xmax = impl_xmin + impl_w
-
-  m1_xmin = rxmin - m1_enc
-  m1_ymin = rymin - m1_enc
-  m1_w = rw + 2 * m1_enc
-  m1_h = rh + 2 * m1_enc
-  m1_ymax = m1_ymin + m1_h
-  m1_xmax = m1_xmin + m1_w
-  m1_gr = gr_w + m1_enc
-
+  # Comp ring: outer - inner, built as 4 strips of width gr_w
   children = []
 
-  def _ring_strips(layer, x0, y0, width, height, strip_w):
-    top = Translated(child=Rect(layer=layer, w=width, h=strip_w),
-                     trans=kdb.DTrans(kdb.DVector(_snap(x0), _snap(y0 + height - strip_w))))
-    bot = Translated(child=Rect(layer=layer, w=width, h=strip_w),
-                     trans=kdb.DTrans(kdb.DVector(_snap(x0), _snap(y0))))
-    left = Translated(child=Rect(layer=layer, w=strip_w, h=height - 2 * strip_w),
-                      trans=kdb.DTrans(kdb.DVector(_snap(x0), _snap(y0))))
-    right = Translated(child=Rect(layer=layer, w=strip_w, h=height - 2 * strip_w),
-                       trans=kdb.DTrans(kdb.DVector(_snap(x0 + width - strip_w), _snap(y0))))
+  def _ring_strips(layer, ix0, iy0, iwidth, iheight, strip_w):
+    # Bottom strip: y=iy0-strip_w to iy0, x=ix0-strip_w to ix0+iwidth+strip_w
+    bot = Translated(child=Rect(layer=layer, w=iwidth + 2 * strip_w, h=strip_w),
+                      trans=kdb.DTrans(kdb.DVector(_snap(ix0 - strip_w), _snap(iy0 - strip_w))))
+    # Top strip: y=iy0+iheight to iy0+iheight+strip_w
+    top = Translated(child=Rect(layer=layer, w=iwidth + 2 * strip_w, h=strip_w),
+                      trans=kdb.DTrans(kdb.DVector(_snap(ix0 - strip_w), _snap(iy0 + iheight))))
+    # Left strip: x=ix0-strip_w to ix0, y=iy0 to iy0+iheight
+    left = Translated(child=Rect(layer=layer, w=strip_w, h=iheight),
+                       trans=kdb.DTrans(kdb.DVector(_snap(ix0 - strip_w), _snap(iy0))))
+    # Right strip: x=ix0+iwidth to ix0+iwidth+strip_w
+    right = Translated(child=Rect(layer=layer, w=strip_w, h=iheight),
+                        trans=kdb.DTrans(kdb.DVector(_snap(ix0 + iwidth), _snap(iy0))))
     return [top, bot, left, right]
 
-  children.extend(_ring_strips(Layers.comp, rxmin, rymin, rw, rh, gr_w))
-  children.extend(_ring_strips(Layers.pplus, impl_xmin, impl_ymin, impl_w, impl_h, comp_pp_enc * 2))
-  children.extend(_ring_strips(Layers.metal1, m1_xmin, m1_ymin, m1_w, m1_h, m1_gr))
+  # Comp strips (width gr_w)
+  children.extend(_ring_strips(Layers.comp, inner_xmin, inner_ymin,
+                                inner_xmax - inner_xmin, inner_ymax - inner_ymin, gr_w))
 
+  # pplus implant ring: extends comp_pp_enc inside and outside of comp
+  # pplus inner = inner - comp_pp_enc, pplus outer = outer + comp_pp_enc
+  ppx0 = oxmin - comp_pp_enc
+  ppy0 = oymin - comp_pp_enc
+  ppw = (oxmax - oxmin) + 2 * comp_pp_enc
+  pph = (oymax - oymin) + 2 * comp_pp_enc
+  pps = comp_pp_enc + gr_w + comp_pp_enc  # strip width
+  children.extend(_ring_strips(Layers.pplus, ppx0, ppy0, ppw, pph, pps))
+
+  # Metal1 ring: same as comp ring (outer - inner of comp)
+  children.extend(_ring_strips(Layers.metal1, inner_xmin, inner_ymin,
+                                inner_xmax - inner_xmin, inner_ymax - inner_ymin, gr_w))
+
+  # Contacts: placed at inner rect edges
+  # gdsfactory via_generator: x_range limited to inner rect, y_range on comp ring
   contact_rect = Rect(layer=Layers.contact, w=con_size, h=con_size,
-                      enl_l=con_size / 2, enl_r=-con_size / 2,
-                      enl_b=con_size / 2, enl_t=-con_size / 2)
+                       enl_l=con_size / 2, enl_r=-con_size / 2,
+                       enl_b=con_size / 2, enl_t=-con_size / 2)
 
-  # Top edge
-  for cx in _contact_positions_on_edge(rxmin, rxmax, con_size, con_sp):
+  # Bottom contacts: y_center = inner_ymin + con_comp_enc (on comp strip)
+  cy_bot = inner_ymin - gr_w / 2
+  for cx in _contact_positions_on_edge(inner_xmin, inner_xmax, con_size, con_sp):
     children.append(Translated(child=contact_rect,
-                               trans=kdb.DTrans(kdb.DVector(_snap(cx), _snap(rymax + gr_w / 2)))))
-  # Bottom edge
-  for cx in _contact_positions_on_edge(rxmin, rxmax, con_size, con_sp):
+                                trans=kdb.DTrans(kdb.DVector(_snap(cx), _snap(cy_bot)))))
+  # Top contacts
+  cy_top = inner_ymax + gr_w / 2
+  for cx in _contact_positions_on_edge(inner_xmin, inner_xmax, con_size, con_sp):
     children.append(Translated(child=contact_rect,
-                               trans=kdb.DTrans(kdb.DVector(_snap(cx), _snap(rymin + gr_w / 2)))))
-  # Left edge
-  for cy in _contact_positions_on_edge(rymin, rymax, con_size, con_sp):
+                                trans=kdb.DTrans(kdb.DVector(_snap(cx), _snap(cy_top)))))
+  # Left contacts
+  cx_left = inner_xmin - gr_w / 2
+  for cy in _contact_positions_on_edge(inner_ymin, inner_ymax, con_size, con_sp):
     children.append(Translated(child=contact_rect,
-                               trans=kdb.DTrans(kdb.DVector(_snap(rxmin + gr_w / 2), _snap(cy)))))
-  # Right edge
-  for cy in _contact_positions_on_edge(rymin, rymax, con_size, con_sp):
+                                trans=kdb.DTrans(kdb.DVector(_snap(cx_left), _snap(cy)))))
+  # Right contacts
+  cx_right = inner_xmax + gr_w / 2
+  for cy in _contact_positions_on_edge(inner_ymin, inner_ymax, con_size, con_sp):
     children.append(Translated(child=contact_rect,
-                               trans=kdb.DTrans(kdb.DVector(_snap(rxmax - gr_w / 2), _snap(cy)))))
+                                trans=kdb.DTrans(kdb.DVector(_snap(cx_right), _snap(cy)))))
 
   return Linear(align=None, children=children)
 
@@ -452,12 +468,15 @@ def make_diffusion_resistor(model, l, w, marker_layer, implant_layer, sub_implan
       dnx = -cmp_res_ext - comp_spacing - sub_w
       dpx = l + cmp_res_ext + comp_spacing + sub_w
     if with_dnwell:
+      # Match gdsfactory: inner = DNWELL + pcmpgr_enc_dn(2.5)
+      # DNWELL = device + lvpwell_enc(0.6) + dn_enc(2.5)
       lvpwell_enc = 0.6
       dn_enc = 2.5
-      dnx -= lvpwell_enc + dn_enc
-      dny -= lvpwell_enc + dn_enc
-      dpx += lvpwell_enc + dn_enc
-      dpy += lvpwell_enc + dn_enc
+      pcmpgr_enc_dn = 2.5
+      dnx -= lvpwell_enc + dn_enc + pcmpgr_enc_dn
+      dny -= lvpwell_enc + dn_enc + pcmpgr_enc_dn
+      dpx += lvpwell_enc + dn_enc + pcmpgr_enc_dn
+      dpy += lvpwell_enc + dn_enc + pcmpgr_enc_dn
     comp.append(_make_guard_ring(dnx, dny, dpx, dpy))
 
   return Linear(align=None, children=comp)
@@ -587,7 +606,8 @@ def make_poly_resistor(model, l, w, marker_layer, implant_layer, sub_implant_lay
       dnx = -pl_res_ext - comp_spacing - sub_w
       dpx = l + pl_res_ext + comp_spacing + sub_w
     if with_dnwell:
-      # Poly DNWELL uses dn_enc_cmp + pcmpgr_enc_dn
+      # Match gdsfactory: inner = DNWELL + pcmpgr_enc_dn(2.5)
+      # Poly DNWELL = device + dn_enc_cmp(0.5)
       dn_enc_cmp = 0.5
       pcmpgr_enc_dn = 2.5
       dnx -= dn_enc_cmp + pcmpgr_enc_dn
@@ -729,6 +749,8 @@ def make_well_resistor(model, l, w, marker_layer, well_layer, cmp_impl_layer, su
   pp_enc_cmp = 0.16
   nw_comp_spacing = 0.72
   dn_enc_lvpwell = 2.5
+  lvpwell_enc = 0.6
+  dn_enc = 2.5
 
   marker = Rect(layer=marker_layer, w=l, h=w + 2 * nw_res_enc, name="marker")
 
@@ -803,10 +825,19 @@ def make_well_resistor(model, l, w, marker_layer, well_layer, cmp_impl_layer, su
     dny = nw_res_enc - nw_res_enc
     dpy = w + nw_res_enc
     if model == "pwell":
-      dnx -= dn_enc_lvpwell
-      dny -= dn_enc_lvpwell
-      dpx += dn_enc_lvpwell
-      dpy += dn_enc_lvpwell
+      # Match gdsfactory: inner = DNWELL + pcmpgr_enc_dn(2.5)
+      # pwell DNWELL = well + dn_enc_lvpwell(2.5)
+      dnx -= dn_enc_lvpwell + dn_enc_lvpwell
+      dny -= dn_enc_lvpwell + dn_enc_lvpwell
+      dpx += dn_enc_lvpwell + dn_enc_lvpwell
+      dpy += dn_enc_lvpwell + dn_enc_lvpwell
+    elif with_dnwell:
+      # nwell with DNWELL: inner = LVPWELL+DNWELL + pcmpgr_enc_dn
+      pcmpgr_enc_dn = 2.5
+      dnx -= lvpwell_enc + dn_enc + pcmpgr_enc_dn
+      dny -= lvpwell_enc + dn_enc + pcmpgr_enc_dn
+      dpx += lvpwell_enc + dn_enc + pcmpgr_enc_dn
+      dpy += lvpwell_enc + dn_enc + pcmpgr_enc_dn
     comp.append(_make_guard_ring(dnx, dny, dpx, dpy))
 
   return Linear(align=None, children=comp)

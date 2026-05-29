@@ -18,7 +18,6 @@ class PCellTestCase:
     w: float
     goldens_dir: str
     extra_params: Dict = field(default_factory=dict)
-    reference: str = "gf"
 
     @property
     def golden_path(self) -> str:
@@ -47,18 +46,6 @@ def pytest_addoption(parser):
         action="store",
         default=None,
         help="Path to the pymacros directory (default: auto-detected from conftest location)",
-    )
-    parser.addoption(
-        "--regenerate",
-        action="store_true",
-        default=False,
-        help="Regenerate PCell golden GDS files instead of comparing",
-    )
-    parser.addoption(
-        "--regenerate-gf",
-        action="store_true",
-        default=False,
-        help="Regenerate gdsfactory golden GDS files instead of comparing",
     )
     parser.addoption(
         "--output-dir",
@@ -96,7 +83,6 @@ def pytest_generate_tests(metafunc):
                 w=case["w"],
                 goldens_dir=str(cases_file.parent),
                 extra_params=case.get("extra", {}),
-                reference=case.get("reference", "gf"),
             )
             testcases.append(tc)
 
@@ -118,16 +104,6 @@ def pymacros_dir(request) -> Path:
         if not path.is_absolute():
             path = Path(__file__).resolve().parent.parent / path
     return path.resolve()
-
-
-@pytest.fixture(scope="session")
-def regenerate(request) -> bool:
-    return request.config.getoption("--regenerate")
-
-
-@pytest.fixture(scope="session")
-def regenerate_gf(request) -> bool:
-    return request.config.getoption("--regenerate-gf")
 
 
 @pytest.fixture(scope="session")

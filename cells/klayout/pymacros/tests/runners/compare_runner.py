@@ -111,32 +111,3 @@ def compare(actual_path: str, golden_path: str) -> Tuple[bool, List[str]]:
 
     passed = len(diffs) == 0
     return passed, diffs
-
-
-def generate_golden(
-    pymacros_dir: Path,
-    lib_name: str,
-    pcell_name: str,
-    params: Dict,
-    golden_path: str,
-) -> bool:
-    """Generate and save a golden GDS file."""
-    return generate_and_export(pymacros_dir, lib_name, pcell_name, params, golden_path)
-
-
-def generate_golden_gf(
-    params: Dict,
-    golden_path: str,
-) -> bool:
-    """Generate and save a gdsfactory golden GDS file."""
-    from tests.runners.generate_gdsfactory import generate_and_export as generate_gf
-
-    return generate_gf(
-        model=params["model"],
-        l=params["l"],
-        w=params["w"],
-        output_path=golden_path,
-        guard_ring=params.get("guard_ring", False),
-        with_dnwell=params.get("with_dnwell", False),
-        n_center_contacts=params.get("n_center_contacts", 0),
-    )
