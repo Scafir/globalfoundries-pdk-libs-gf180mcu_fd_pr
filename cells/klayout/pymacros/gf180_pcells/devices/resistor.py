@@ -594,7 +594,7 @@ def make_resistor(
 
     if cfg.get("has_nwell_enc", False) == True:
         nwell_enc = Rect(
-            enclose=assembly,
+            enclose=children,
             enclose_layer=Layers.comp,
             enl=0.6,
             layer=Layers.nwell)
