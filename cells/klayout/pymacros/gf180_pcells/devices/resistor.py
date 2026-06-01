@@ -91,7 +91,7 @@ def _diffusion_contact_stack(term_w: float, term_h: float):
         leftover_y = term_h - nr * _CON_SIZE - max(0, nr - 1) * _CON_SPC
         if leftover_y / 2 < _CON_ENC - 1e-10:
             nr -= 1
-   
+
     spacing = _CON_SPC
     if (nc >= 4) and (nr >= 4):
         spacing = _CON_SPC_ARRAY
@@ -322,6 +322,15 @@ def _build_diff_poly_core(model, l, w, cfg, with_contacts):
 
     # Chain: left | core | right
     assembly = Linear(align="HC", children=[left_aligned, core, right_aligned])
+
+    if not _n_type(model):
+        nwell_enc = Rect(
+            enclose=assembly,
+            enclose_layer=Layers.comp,
+            enl=0.6,
+            layer=Layers.nwell)
+        assembly = Linear(align=None, children=[assembly, nwell_enc])
+
     return Justify(child=assembly, ref_point="C")
 
 def _build_well_core(model, l, w, cfg, with_contacts):
@@ -415,42 +424,42 @@ def _apply_substrate(children, cfg, model, side):
     ref_layer = cfg.get("sub_ref_layer")
     if ref_layer is None:
         return children  # Skip for metal or models without substrate rules
-        
+
     box = children.bounding_box_for_layer(ref_layer)
     if box.empty():
         raise ValueError("Cannot apply substrate: missing reference layer")
-        
+
     # 1. Dimensions & implant config
     sub_w = cfg["sub_w"]
     sub_h_raw = max(box.height(), round(cfg["sub_min_area"] / sub_w, 3))
     sub_impl_layer = Layers.pplus if _n_type(model) else Layers.nplus
     impl_enc = 0.16 if model in ("nwell", "pwell") else cfg["impl_enc"]
-    
+
     # 2. Build a centered substrate stack (no Translated needed)
     def _build_centered_sub():
         sub_rect = Rect(layer=Layers.comp, w=sub_w, h=sub_h_raw)
         sub_impl = Rect(layer=sub_impl_layer, enclose=sub_rect, enl=impl_enc)
         sub_cont = _diffusion_contact_stack(sub_w, sub_h_raw)
         return Linear(align=None, children=[sub_rect, sub_impl, sub_cont])
-        
+
     # 3. Declarative alignment chain
     chain = []
     spacing = cfg["sub_spacing"]
-    
+
     if side in ("right", "both"):
         left_sub = _build_centered_sub()
         # Align on comp layer, pull reference point left by spacing
         left_aligned = RefShift(LayerAlign(left_sub, Layers.comp), dx=spacing, dy=0)
         chain.append(left_aligned)
-        
+
     chain.append(children)  # Resistor core
-    
+
     if side in ("left", "both"):
         right_sub = _build_centered_sub()
         # Align on comp layer, push reference point right by spacing
         right_aligned = RefShift(LayerAlign(right_sub, Layers.comp), dx=-spacing, dy=0)
         chain.append(right_aligned)
-        
+
     # 4. Chain horizontally & re-center
     assembly = Linear(align="HC", children=chain)
     return Justify(child=assembly, ref_point="C")
@@ -459,7 +468,7 @@ def _apply_nwell_enclosure(children, cfg):
     """Add N WELL enclosure (for pplus diffusion resistors)."""
     if not cfg.get("has_nwell_enc", False):
         return children, bounds
-    
+
     box = children.bounding_box_for_layer(Layers.comp)
     xmin, ymin, xmax, ymax = box.left, box.bottom, box.right, box.top
     nw_enc = 0.6
@@ -467,7 +476,7 @@ def _apply_nwell_enclosure(children, cfg):
                    w=(xmax - xmin) + 2 * nw_enc,
                    h=(ymax - ymin) + 2 * nw_enc)
     children.append(Translated(child=nw_rect,
-                               trans=kdb.DTrans(kdb.DVector(_snap(xmin - nw_enc), 
+                               trans=kdb.DTrans(kdb.DVector(_snap(xmin - nw_enc),
                                                             _snap(ymin - nw_enc)))))
     return Linear(align=None, children=children)
 
@@ -584,7 +593,12 @@ def make_resistor(
         children = _apply_substrate(children, cfg, model, substrate_side)
 
     if cfg.get("has_nwell_enc", False) == True:
-        children = _apply_nwell_enclosure(children, cfg)
+        nwell_enc = Rect(
+            enclose=assembly,
+            enclose_layer=Layers.comp,
+            enl=0.6,
+            layer=Layers.nwell)
+        children = Linear(align=None, children=[children, nwell_enc])
 
     if with_dnwell:
         children = _apply_dnwell(children, cfg, model)
