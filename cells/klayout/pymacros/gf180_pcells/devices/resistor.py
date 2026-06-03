@@ -12,6 +12,8 @@ from ..core.linear import Linear
 from ..core.justify import Justify
 from ..core.translated import Translated
 from .guard_ring import GuardRing
+from .gf180_rect_fill import ContactFill
+from .gf180_via_stack import GF180ViaStack
 # ====================================================================
 # Model catalog
 # ====================================================================
@@ -131,7 +133,7 @@ def _make_substrate(sub_w, sub_h, sub_impl_layer, sub_impl_enc, sub_xmin, sub_ym
     """Build a substrate comp + implant + contact stack."""
     sub_rect = Rect(layer=Layers.comp, w=sub_w, h=sub_h)
     sub_impl = Rect(layer=sub_impl_layer, enclose=sub_rect, enl=sub_impl_enc)
-    sub_cont = _diffusion_contact_stack(sub_w, sub_h)
+    sub_cont = ContactFill(sub_w, sub_h)
     substrate = Linear(align="C", children=[sub_rect, sub_impl, sub_cont])
     return substrate
 
@@ -167,12 +169,11 @@ def _make_terminal(con_w, con_h, cmp_impl_layer, impl_enc):
     con_rect = Rect(layer=Layers.comp, w=con_w, h=con_h)
     con_impl = Rect(layer=cmp_impl_layer,
                     w=cp_w + 2 * impl_enc, h=cp_h + 2 * impl_enc)
-    impl_offset = kdb.DTrans(kdb.DVector(cp_xmin - impl_enc, cp_ymin - impl_enc))
-    con_cont = _centered_contact_stack(con_w, con_h, con_rect)
+    con_cont = ContactFill(con_w, con_h)
 
-    return Linear(align=None, children=[
+    return Linear(align='C', children=[
         con_rect,
-        Translated(child=con_impl, trans=impl_offset),
+        con_impl,
         con_cont,
         ])
 
@@ -298,37 +299,36 @@ def _build_diff_poly_core(model, l, w, cfg, with_contacts):
     return Justify(child=assembly, ref_point="C")
 
 def _build_well_core(model, l, w, cfg, with_contacts):
-    children = []
-    ext, impl_enc = cfg["ext"], cfg["impl_enc"]
-    nw_res_enc = 0.5
-    well_layer = Layers.nwell if model == "nwell" else Layers.lvpwell
-    marker_layer = resistor_type_map[model][2]
-    cmp_impl_layer = Layers.nplus if model == "nwell" else Layers.pplus
+    children = GF180ViaStack(l, w, from_layer = Layers.nwell, to_layer = Layers.metal5)
+    #ext, impl_enc = cfg["ext"], cfg["impl_enc"]
+    #nw_res_enc = 0.5
+    #well_layer = Layers.nwell if model == "nwell" else Layers.lvpwell
+    #marker_layer = resistor_type_map[model][2]
+    #cmp_impl_layer = Layers.nplus if model == "nwell" else Layers.pplus
 
-    marker = Rect(layer=marker_layer, w=l, h=w + 2 * nw_res_enc, name="marker")
-    well = Rect(layer=well_layer, w=l + 2 * ext, h=w)
-    well_offset = kdb.DTrans(kdb.DVector(_snap(-ext), _snap(nw_res_enc)))
-    children.extend([marker, Translated(child=well, trans=well_offset)])
+    #marker = Rect(layer=marker_layer, w=l, h=w, name="marker")
+    #well = Rect(layer=well_layer, w=l + 2 * ext, h=w)
+    #children.extend([marker, Translated(child=well, trans=well_offset)])
 
-    con_w = ext - impl_enc
-    con_h = w - 2 * impl_enc
-    con_xmin, con_ymin = -ext + impl_enc, nw_res_enc + impl_enc
+    #con_w = ext - impl_enc
+    #con_h = w - 2 * impl_enc
+    #con_xmin, con_ymin = -ext + impl_enc, nw_res_enc + impl_enc
 
-    left_term = _make_terminal(con_w, con_h, cmp_impl_layer, 0.16)
-    right_term = _make_terminal(con_w, con_h, cmp_impl_layer, 0.16)
+    #left_term = _make_terminal(con_w, con_h, cmp_impl_layer, 0.16)
+    #right_term = _make_terminal(con_w, con_h, cmp_impl_layer, 0.16)
 
-    _cp_xmin, _cp_ymin, _cp_w, _cp_h = _con_polys_size(con_w, con_h)
-    con_spacing = l + 2 * ext - 2 * impl_enc - _cp_w
+    #_cp_xmin, _cp_ymin, _cp_w, _cp_h = _con_polys_size(con_w, con_h)
+    #con_spacing = l + 2 * ext - 2 * impl_enc - _cp_w
 
-    if with_contacts:
-        left_offset = kdb.DTrans(kdb.DVector(_snap(con_xmin), _snap(con_ymin)))
-        right_offset = kdb.DTrans(kdb.DVector(_snap(con_xmin + con_spacing), _snap(con_ymin)))
-        children.extend([
-            Translated(child=left_term, trans=left_offset),
-            Translated(child=right_term, trans=right_offset)
-        ])
+    #if with_contacts:
+    #    left_offset = kdb.DTrans(kdb.DVector(_snap(con_xmin), _snap(con_ymin)))
+    #    right_offset = kdb.DTrans(kdb.DVector(_snap(con_xmin + con_spacing), _snap(con_ymin)))
+    #    children.extend([
+    #        Translated(child=left_term, trans=left_offset),
+    #        Translated(child=right_term, trans=right_offset)
+    #    ])
 
-    return Linear(align=None, children=children)
+    return children #Linear(align=None, children=children)
 
 
 def _build_ppolyf_u_h_core(model, l, w, cfg, with_contacts):

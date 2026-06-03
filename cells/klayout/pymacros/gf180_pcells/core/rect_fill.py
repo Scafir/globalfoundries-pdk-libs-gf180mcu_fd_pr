@@ -45,23 +45,10 @@ class RectFill(Node):
           respecting edge_clearance.
         - Halos affect pack_box() only and do not change drawn geometry.
     """
-    @classmethod
-    def from_preset(cls, preset_name: str, w=None, h=None, enclose=None, **kwargs):
-        presets = {
-            "contact": {
-                'layer': Layers.contact, 'outer_layer': Layers.metal1,
-                'cell_w': 0.26, 'cell_h': 0.26, 'spacing': 0.26,
-                'array_rule_limit': 4, 'array_spacing': 0.36, 'edge_clearance': 0.06
-            },
-        }
-        defaults = presets[preset_name].copy()
-        defaults.update(kwargs)
-        return cls(w=w, h=h, enclose=enclose, **defaults) 
-
-    def __init__(self, layer: kdb.LayerInfo = None,
+    def __init__(self, w: float = None, h: float = None,
+                 layer: kdb.LayerInfo = None,
                  enclose: Node = None, enclose_pack: bool = False,
                  enclose_feature: str = "*", enclose_layer: kdb.LayerInfo = None,
-                 w: float = None, h: float = None,
                  cell_w: float = 1.0, cell_h: float = 1.0,
                  spacing: float = 0.0, edge_clearance: float = 0.0,
                  long_edge_extra_clearance: float = 0.0,
