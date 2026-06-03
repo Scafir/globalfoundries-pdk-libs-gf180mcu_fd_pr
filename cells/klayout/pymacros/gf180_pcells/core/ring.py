@@ -1,8 +1,8 @@
 """
 Ring geometry node for rectangular frames.
 
-Provides a `Ring` node that generates a rectangular frame composed of four 
-precisely tiled rectangles (top, bottom, left, right). Supports two primary 
+Provides a `Ring` node that generates a rectangular frame composed of four
+precisely tiled rectangles (top, bottom, left, right). Supports two primary
 instantiation modes:
   1. Enclosure: Wraps an existing node's bounding box (optionally targeting a specific layer)
   2. Explicit: Uses inner/outer/center dimensions with a specified thickness
@@ -13,19 +13,21 @@ packing, and feature querying.
 
 import pya as kdb
 import typing
+from typing import Union, Callable, Dict, Any, Optional
 
 from .node import Node
+from .rect import Rect
 
 
 class Ring(Node):
     """
-    A rectangular frame node composed of four precisely tiled rectangles.
-    
+    A rectangular frame node composed of four precisely tiled segments.
+
     Generates a ring geometry on a specified layer with configurable thickness.
     Supports enclosure of child nodes or explicit dimension specification.
-    
+    Segment generation is fully pluggable via the `primitive` parameter.
+
     Args:
-        layer: Target KLayout layer for output geometry.
         enclose: Child node to enclose. Mutually exclusive with explicit w/h.
         enclose_pack: If True, targets the child's pack_box() boundary.
         enclose_feature: Feature name to target (default: "*" for all).
@@ -37,35 +39,43 @@ class Ring(Node):
               - "outer": w/h are outer dimensions
               - "inner": w/h are inner dimensions (outer = w/h + 2*width)
               - "center": w/h are centerline dimensions (outer = w/h + width)
-        spacing: Virtual outward expansion applied to the enclosure before the ring 
-                 is drawn. Only active when enclose is provided. Adds to the inner 
+        spacing: Virtual outward expansion applied to the enclosure before the ring
+                 is drawn. Only active when enclose is provided. Adds to the inner
                  boundary on all sides (inner = enclosure + 2*spacing).
+        primitive: Optional Node class or factory function to generate each segment.
+                   If None, falls back to exact rectangular tiling.
+                   Receives (w, h, layer, **primitive_kwargs) during instantiation.
+        primitive_kwargs: Additional keyword arguments passed to the primitive.
         halo: Base halo applied to all sides for packing/clearance.
         halo_x, halo_y: Horizontal/vertical halo overrides.
         halo_l, halo_r, halo_b, halo_t: Directional halos.
         name: Feature identifier for feature_box() lookups.
-        
+
     Note:
-        - The four rectangles are tiled without corner overlaps for precise area/DRC.
+        - The four segments are tiled without corner overlaps for precise area/DRC.
         - Halos affect `pack_box()` but do not change drawn geometry.
         - Ring width cannot exceed half of the ring's outer dimensions.
         - `spacing` only applies when `enclose` is set. It has no effect on explicit w/h.
     """
 
-    def __init__(self, layer: kdb.LayerInfo = None,
-                 enclose: Node = None, enclose_pack: bool = False,
+    def __init__(self, enclose: Node = None, enclose_pack: bool = False,
                  enclose_feature: str = "*", enclose_layer: kdb.LayerInfo = None,
                  w: float = None, h: float = None, width: float = 0.0, mode: str = "outer",
                  spacing: float = 0.0,
+                 primitive: Optional[Union[type, Callable]] = Rect,
+                 primitive_kwargs: Optional[Dict[str, Any]] = None,
                  halo: float = 0.0, halo_x: float = 0.0, halo_y: float = 0.0,
-                 halo_l: float = 0.0, halo_b: float = 0.0, halo_t: float = 0.0, halo_r: float = 0.0,
-                 name: str = ""):
-
-        self.layer = layer
+                 halo_l: float = 0.0, halo_b: float = 0.0, halo_t: float = 0.0,
+                 halo_r: float = 0.0, name: str = ""):
+        print("IN RING")
         self.name = name
         self.width = width
         self.spacing = spacing
-        
+        self.primitive = primitive
+        self.primitive_kwargs = primitive_kwargs or {}
+
+        print("Primitive is "+str(primitive))
+
         # Aggregate halos
         self.halo_l = halo + halo_x + halo_l
         self.halo_r = halo + halo_x + halo_r
@@ -84,7 +94,7 @@ class Ring(Node):
         else:
             if w is None or h is None:
                 raise ValueError("Either 'enclose' or 'w'/'h' must be provided for Ring")
-                
+
             if mode == "outer":
                 self.w_outer, self.h_outer = w, h
             elif mode == "inner":
@@ -145,22 +155,34 @@ class Ring(Node):
         )
 
     def produce(self, cell: kdb.Cell, trans: kdb.DTrans):
-        """Inserts the four precisely tiled rectangles into the target cell."""
+        """Inserts the four precisely tiled segments into the target cell."""
         if self.layer is None:
+            print("Layer is none")
             return
-            
+
         lindex = cell.layout().layer(self.layer)
         cx, cy = self.center.x, self.center.y
         w_out, h_out = self.w_outer, self.h_outer
         w_r = self.width
 
-        # Precisely tiled rectangles (no corner overlaps)
-        left   = kdb.DBox(cx - w_out/2, cy - h_out/2, cx - w_out/2 + w_r, cy + h_out/2)
-        right  = kdb.DBox(cx + w_out/2 - w_r, cy - h_out/2, cx + w_out/2, cy + h_out/2)
-        top    = kdb.DBox(cx - w_out/2 + w_r, cy + h_out/2 - w_r, cx + w_out/2 - w_r, cy + h_out/2)
-        bottom = kdb.DBox(cx - w_out/2 + w_r, cy - h_out/2, cx + w_out/2 - w_r, cy - h_out/2 + w_r)
+        # Pluggable primitive tiling
+        # (seg_w, seg_h, dx_from_center, dy_from_center)
+        segments = [
+            (w_r, h_out, -w_out/2 + w_r/2, 0),          # left
+            (w_r, h_out,  w_out/2 - w_r/2, 0),          # right
+            (w_out - 2*w_r, w_r, 0, h_out/2 - w_r/2),   # top
+            (w_out - 2*w_r, w_r, 0, -h_out/2 + w_r/2)   # bottom
+        ]
 
-        cell.shapes(lindex).insert(trans * left)
-        cell.shapes(lindex).insert(trans * right)
-        cell.shapes(lindex).insert(trans * top)
-        cell.shapes(lindex).insert(trans * bottom)
+        print("HELLO")
+        for seg_w, seg_h, dx, dy in segments:
+            # Prepare kwargs: primitive_kwargs + segment dimensions + target layer
+            inst_kwargs = {**self.primitive_kwargs, "w": seg_w, "h": seg_h}
+
+            # Instantiate the primitive (works for classes or factory callables)
+            node = self.primitive(**inst_kwargs)
+
+            # Apply segment offset relative to ring center, then global transform
+            seg_trans = trans * kdb.DTrans(kdb.DVector(cx + dx, cy + dy))
+            print("Calling produce on" +str(node))
+            node.produce(cell, seg_trans)
