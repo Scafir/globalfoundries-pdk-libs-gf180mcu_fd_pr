@@ -7,10 +7,11 @@ from ..core.array import Array
 from ..core.align import LayerAlign, RefShift
 from ..core.pack import PackRef
 from ..core.rect import Rect
+from ..core.ring import Ring
 from ..core.linear import Linear
 from ..core.justify import Justify
 from ..core.translated import Translated
-
+from .guard_ring import GuardRing
 # ====================================================================
 # Model catalog
 # ====================================================================
@@ -188,48 +189,10 @@ def _contact_positions_on_edge(start, end, size, spacing):
 def _make_guard_ring(inner_xmin, inner_ymin, inner_xmax, inner_ymax, gr_w=0.36):
     comp_pp_enc = 0.16
     con_size, con_sp, con_comp_enc = 0.22, 0.28, 0.07
-    oxmin, oymin = inner_xmin - gr_w, inner_ymin - gr_w
-    oxmax, oymax = inner_xmax + gr_w, inner_ymax + gr_w
 
-    children = []
-    def _ring_strips(layer, ix0, iy0, iwidth, iheight, strip_w):
-        bot = Translated(child=Rect(layer=layer, w=iwidth + 2 * strip_w, h=strip_w),
-                         trans=kdb.DTrans(kdb.DVector(_snap(ix0 - strip_w), _snap(iy0 - strip_w))))
-        top = Translated(child=Rect(layer=layer, w=iwidth + 2 * strip_w, h=strip_w),
-                         trans=kdb.DTrans(kdb.DVector(_snap(ix0 - strip_w), _snap(iy0 + iheight))))
-        left = Translated(child=Rect(layer=layer, w=strip_w, h=iheight),
-                          trans=kdb.DTrans(kdb.DVector(_snap(ix0 - strip_w), _snap(iy0))))
-        right = Translated(child=Rect(layer=layer, w=strip_w, h=iheight),
-                           trans=kdb.DTrans(kdb.DVector(_snap(ix0 + iwidth), _snap(iy0))))
-        return [top, bot, left, right]
+    children = GuardRing(w=10, h= 15)
 
-    iw, ih = inner_xmax - inner_xmin, inner_ymax - inner_ymin
-    children.extend(_ring_strips(Layers.comp, inner_xmin, inner_ymin, iw, ih, gr_w))
-
-    pps = comp_pp_enc + gr_w + comp_pp_enc
-    children.extend(_ring_strips(Layers.pplus, oxmin - comp_pp_enc, oymin - comp_pp_enc,
-                                 (oxmax - oxmin) + 2 * comp_pp_enc, (oymax - oymin) + 2 * comp_pp_enc, pps))
-
-    children.extend(_ring_strips(Layers.metal1, inner_xmin, inner_ymin, iw, ih, gr_w))
-
-    contact_rect = Rect(layer=Layers.contact, w=con_size, h=con_size,
-                        enl_l=con_size / 2, enl_r=-con_size / 2,
-                        enl_b=con_size / 2, enl_t=-con_size / 2)
-
-    cy_bot = inner_ymin - gr_w / 2
-    for cx in _contact_positions_on_edge(inner_xmin, inner_xmax, con_size, con_sp):
-        children.append(Translated(child=contact_rect, trans=kdb.DTrans(kdb.DVector(_snap(cx), _snap(cy_bot)))))
-    cy_top = inner_ymax + gr_w / 2
-    for cx in _contact_positions_on_edge(inner_xmin, inner_xmax, con_size, con_sp):
-        children.append(Translated(child=contact_rect, trans=kdb.DTrans(kdb.DVector(_snap(cx), _snap(cy_top)))))
-    cx_left = inner_xmin - gr_w / 2
-    for cy in _contact_positions_on_edge(inner_ymin, inner_ymax, con_size, con_sp):
-        children.append(Translated(child=contact_rect, trans=kdb.DTrans(kdb.DVector(_snap(cx_left), _snap(cy)))))
-    cx_right = inner_xmax + gr_w / 2
-    for cy in _contact_positions_on_edge(inner_ymin, inner_ymax, con_size, con_sp):
-        children.append(Translated(child=contact_rect, trans=kdb.DTrans(kdb.DVector(_snap(cx_right), _snap(cy)))))
-
-    return Linear(align=None, children=children)
+    return children
 
 
 def _center_contacts(res_xmin, res_ymin, res_xmax, res_ymax, count):
@@ -295,6 +258,7 @@ def _get_resistor_cfg(model):
 # ====================================================================
 
 def _build_diff_poly_core(model, l, w, cfg, with_contacts):
+    # 1. Standard contact stack with large-array rule:
     ext, impl_enc, con_enc = cfg["ext"], cfg["impl_enc"], cfg["con_enc"]
     marker_layer = resistor_type_map[model][2]
     active_layer = Layers.comp if _diffusion(model) else Layers.poly
@@ -529,26 +493,26 @@ def _apply_guard_ring(children, cfg, model):
     gr_w = cfg["gr_w"]
 
     # Adjust inner box based on DNWELL presence to match gdsfactory
-    if with_dnwell:
-        if model == "pwell":
-            enc = 2.5 + 2.5
-            xmin, ymin = xmin - enc, ymin - enc
-            xmax, ymax = xmax + enc, ymax + enc
-        elif model == "nwell":
-            enc = cfg["lvpwell_enc"] + cfg["dn_enc"] + 2.5
-            xmin, ymin = xmin - enc, ymin - enc
-            xmax, ymax = xmax + enc, ymax + enc
-        elif _poly(model):
-            enc = 0.5 + 2.5
-            xmin, ymin = xmin - enc, ymin - enc
-            xmax, ymax = xmax + enc, ymax + enc
-        elif _diffusion(model):
-            enc = cfg["lvpwell_enc"] + cfg["dn_enc"] + 2.5
-            xmin, ymin = xmin - enc, ymin - enc
-            xmax, ymax = xmax + enc, ymax + enc
+    #if with_dnwell:
+    #    if model == "pwell":
+    #        enc = 2.5 + 2.5
+    #        xmin, ymin = xmin - enc, ymin - enc
+    #        xmax, ymax = xmax + enc, ymax + enc
+    #    elif model == "nwell":
+    #        enc = cfg["lvpwell_enc"] + cfg["dn_enc"] + 2.5
+    #        xmin, ymin = xmin - enc, ymin - enc
+    #        xmax, ymax = xmax + enc, ymax + enc
+    #    elif _poly(model):
+    #        enc = 0.5 + 2.5
+    #        xmin, ymin = xmin - enc, ymin - enc
+    #        xmax, ymax = xmax + enc, ymax + enc
+    #    elif _diffusion(model):
+    #        enc = cfg["lvpwell_enc"] + cfg["dn_enc"] + 2.5
+    #        xmin, ymin = xmin - enc, ymin - enc
+    #        xmax, ymax = xmax + enc, ymax + enc
 
-    children.append(_make_guard_ring(_snap(xmin), _snap(ymin), _snap(xmax), _snap(ymax), gr_w))
-    return Linear(align=None, children=children)
+    guard_ring = _make_guard_ring(xmin, ymin, xmax, ymax, gr_w)
+    return Linear(align=None, children=[children, guard_ring])
 
 
 # ====================================================================

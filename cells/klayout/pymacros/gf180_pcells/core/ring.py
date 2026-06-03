@@ -16,8 +16,8 @@ import typing
 from typing import Union, Callable, Dict, Any, Optional
 
 from .node import Node
-from .rect import Rect
 
+RingSegmentFactory = typing.Callable[[float, float], Node]
 
 class Ring(Node):
     """
@@ -62,19 +62,14 @@ class Ring(Node):
                  enclose_feature: str = "*", enclose_layer: kdb.LayerInfo = None,
                  w: float = None, h: float = None, width: float = 0.0, mode: str = "outer",
                  spacing: float = 0.0,
-                 primitive: Optional[Union[type, Callable]] = Rect,
-                 primitive_kwargs: Optional[Dict[str, Any]] = None,
+                 segment_factory: RingSegmentFactory = None,
                  halo: float = 0.0, halo_x: float = 0.0, halo_y: float = 0.0,
                  halo_l: float = 0.0, halo_b: float = 0.0, halo_t: float = 0.0,
                  halo_r: float = 0.0, name: str = ""):
-        print("IN RING")
         self.name = name
         self.width = width
         self.spacing = spacing
-        self.primitive = primitive
-        self.primitive_kwargs = primitive_kwargs or {}
-
-        print("Primitive is "+str(primitive))
+        self.segment_factory = segment_factory
 
         # Aggregate halos
         self.halo_l = halo + halo_x + halo_l
@@ -112,6 +107,28 @@ class Ring(Node):
                 f"{self.w_outer}×{self.h_outer}. Ring cannot be drawn."
             )
 
+        # Instantiate subelements upfront
+        w_out, h_out = self.w_outer, self.h_outer
+        w_r = self.width
+        # (seg_w, seg_h, dx_from_center, dy_from_center)
+        seg_defs = [
+            (w_r, h_out, -w_out/2 + w_r/2, 0),          # left
+            (w_r, h_out,  w_out/2 - w_r/2, 0),          # right
+            (w_out - 2*w_r, w_r, 0, h_out/2 - w_r/2),   # top
+            (w_out - 2*w_r, w_r, 0, -h_out/2 + w_r/2)   # bottom
+        ]
+
+        self.children = []
+        for seg_w, seg_h, dx, dy in seg_defs:
+            node = self._make_segment(seg_w, seg_h)
+            self.children.append((node, dx, dy))
+
+    def _make_segment(self, seg_w, seg_h) -> Node:
+        if self.segment_factory is None:
+            raise ValueError("Ring requires a segment_factory")
+
+        return self.segment_factory(seg_w, seg_h)
+
     @staticmethod
     def _resolve_enclose_box(enclose, enclose_pack, enclose_feature, enclose_layer) -> kdb.DBox:
         """Determine the reference box used for enclosure targeting."""
@@ -126,25 +143,31 @@ class Ring(Node):
             return enclose.feature_box(enclose_feature)
 
     def bounding_box(self) -> kdb.DBox:
-        """Returns the absolute outer bounding box of the ring."""
-        return kdb.DBox(
-            self.center.x - self.w_outer / 2,
-            self.center.y - self.h_outer / 2,
-            self.center.x + self.w_outer / 2,
-            self.center.y + self.h_outer / 2
-        )
+        """Returns the absolute outer bounding box of the ring, aggregated from primitives."""
+        box = kdb.DBox()
+        for node, dx, dy in self.children:
+            local_trans = kdb.DTrans(kdb.DVector(self.center.x + dx, self.center.y + dy))
+            box += local_trans * node.bounding_box()
+        return box
 
     def bounding_box_for_layer(self, layer) -> kdb.DBox:
-        """Returns bounding box only if the queried layer matches this ring's layer."""
-        if self.layer is not None and self.layer == layer:
-            return self.bounding_box()
-        return kdb.DBox()
+        """Returns bounding box aggregated from primitives for a specific layer."""
+        box = kdb.DBox()
+        for node, dx, dy in self.children:
+            local_trans = kdb.DTrans(kdb.DVector(self.center.x + dx, self.center.y + dy))
+            box += local_trans * node.bounding_box_for_layer(layer)
+        return box
 
     def feature_box(self, feature_name: str) -> kdb.DBox:
-        """Returns bounding box for wildcard '*' or matching feature name."""
+        """Returns bounding box for wildcard '*' or matching feature name, aggregated from primitives."""
         if feature_name == "*" or feature_name == self.name:
             return self.bounding_box()
-        return kdb.DBox()
+
+        box = kdb.DBox()
+        for node, dx, dy in self.children:
+            local_trans = kdb.DTrans(kdb.DVector(self.center.x + dx, self.center.y + dy))
+            box += local_trans * node.feature_box(feature_name)
+        return box
 
     def pack_box(self) -> kdb.DBox:
         """Returns the packing boundary including halos. Used by layout managers."""
@@ -156,33 +179,6 @@ class Ring(Node):
 
     def produce(self, cell: kdb.Cell, trans: kdb.DTrans):
         """Inserts the four precisely tiled segments into the target cell."""
-        if self.layer is None:
-            print("Layer is none")
-            return
-
-        lindex = cell.layout().layer(self.layer)
-        cx, cy = self.center.x, self.center.y
-        w_out, h_out = self.w_outer, self.h_outer
-        w_r = self.width
-
-        # Pluggable primitive tiling
-        # (seg_w, seg_h, dx_from_center, dy_from_center)
-        segments = [
-            (w_r, h_out, -w_out/2 + w_r/2, 0),          # left
-            (w_r, h_out,  w_out/2 - w_r/2, 0),          # right
-            (w_out - 2*w_r, w_r, 0, h_out/2 - w_r/2),   # top
-            (w_out - 2*w_r, w_r, 0, -h_out/2 + w_r/2)   # bottom
-        ]
-
-        print("HELLO")
-        for seg_w, seg_h, dx, dy in segments:
-            # Prepare kwargs: primitive_kwargs + segment dimensions + target layer
-            inst_kwargs = {**self.primitive_kwargs, "w": seg_w, "h": seg_h}
-
-            # Instantiate the primitive (works for classes or factory callables)
-            node = self.primitive(**inst_kwargs)
-
-            # Apply segment offset relative to ring center, then global transform
-            seg_trans = trans * kdb.DTrans(kdb.DVector(cx + dx, cy + dy))
-            print("Calling produce on" +str(node))
+        for node, dx, dy in self.children:
+            seg_trans = trans * kdb.DTrans(kdb.DVector(self.center.x + dx, self.center.y + dy))
             node.produce(cell, seg_trans)

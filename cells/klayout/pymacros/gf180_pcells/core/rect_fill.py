@@ -13,8 +13,7 @@ a single declarative node.
 import pya as kdb
 import typing
 
-from ..core.node import Node
-
+from .node import Node
 
 class RectFill(Node):
     """
@@ -46,6 +45,18 @@ class RectFill(Node):
           respecting edge_clearance.
         - Halos affect pack_box() only and do not change drawn geometry.
     """
+    @classmethod
+    def from_preset(cls, preset_name: str, w=None, h=None, enclose=None, **kwargs):
+        presets = {
+            "contact": {
+                'layer': Layers.contact, 'outer_layer': Layers.metal1,
+                'cell_w': 0.26, 'cell_h': 0.26, 'spacing': 0.26,
+                'array_rule_limit': 4, 'array_spacing': 0.36, 'edge_clearance': 0.06
+            },
+        }
+        defaults = presets[preset_name].copy()
+        defaults.update(kwargs)
+        return cls(w=w, h=h, enclose=enclose, **defaults) 
 
     def __init__(self, layer: kdb.LayerInfo = None,
                  enclose: Node = None, enclose_pack: bool = False,
@@ -53,6 +64,7 @@ class RectFill(Node):
                  w: float = None, h: float = None,
                  cell_w: float = 1.0, cell_h: float = 1.0,
                  spacing: float = 0.0, edge_clearance: float = 0.0,
+                 long_edge_extra_clearance: float = 0.0,
                  outer_layer: kdb.LayerInfo = None, 
                  array_rule_limit: int = 4, array_spacing: float = None,
                  halo: float = 0.0, halo_x: float = 0.0, halo_y: float = 0.0,
@@ -64,6 +76,7 @@ class RectFill(Node):
         self.cell_w = cell_w
         self.cell_h = cell_h
         self.edge_clearance = edge_clearance
+        self.long_edge_extra_clearance = long_edge_extra_clearance
         self.outer_layer = outer_layer
         self.name = name
         self.spacing = spacing  # Will be updated to array_spacing if rule triggers
@@ -88,13 +101,20 @@ class RectFill(Node):
             self.h = h
 
         # 1. Initial calculation with standard spacing
-        self.nc = self._calc_grid_count(self.w, self.cell_w, spacing)
-        self.nr = self._calc_grid_count(self.h, self.cell_h, spacing)
+        if self.w > self.h:
+            w_available = self.w - 2 * self.edge_clearance - self.long_edge_extra_clearance
+            h_available = self.h - 2 * self.edge_clearance
+        else:
+            w_available = self.w - 2 * self.edge_clearance
+            h_available = self.h - 2 * self.edge_clearance - self.long_edge_extra_clearance
+
+        self.nc = self._calc_grid_count(w_available, self.cell_w, spacing)
+        self.nr = self._calc_grid_count(h_available, self.cell_h, spacing)
 
         # 2. Apply large-array spacing rule
         if array_spacing is not None and self.nc > array_rule_limit and self.nr > array_rule_limit:
-            self.nc = self._calc_grid_count(self.w, self.cell_w, array_spacing)
-            self.nr = self._calc_grid_count(self.h, self.cell_h, array_spacing)
+            self.nc = self._calc_grid_count(w_available, self.cell_w, array_spacing)
+            self.nr = self._calc_grid_count(h_available, self.cell_h, array_spacing)
             self.spacing = array_spacing  # Update effective spacing for geometry
 
     @staticmethod
@@ -113,15 +133,10 @@ class RectFill(Node):
     def _calc_grid_count(self, dim: float, cell_size: float, spacing: float) -> int:
         """Calculate optimal grid count for a single dimension with clearance enforcement."""
         avail = dim - 2 * self.edge_clearance
-        if avail <= 0:
+        if avail < cell_size:
             return 0
             
-        count = int((avail) // (cell_size + spacing))
-        leftover = dim - count * cell_size - max(0, count - 1) * spacing
-        
-        # Reduce count if edge clearance is violated
-        if count > 0 and leftover / 2 < self.edge_clearance:
-            count -= 1
+        count = 1 + int((avail - cell_size) // (cell_size + spacing))
             
         return count
 
