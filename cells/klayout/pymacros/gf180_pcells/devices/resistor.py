@@ -10,9 +10,7 @@ from ..core.rect import Rect
 from ..core.ring import Ring
 from ..core.linear import Linear
 from ..core.justify import Justify
-from ..core.translated import Translated
 from .guard_ring import GuardRing
-from .gf180_rect_fill import ContactFill
 from .gf180_via_stack import GF180ViaStack
 # ====================================================================
 # Model catalog
@@ -299,7 +297,7 @@ def _build_diff_poly_core(model, l, w, cfg, with_contacts):
     return Justify(child=assembly, ref_point="C")
 
 def _build_well_core(model, l, w, cfg, with_contacts):
-    children = GF180ViaStack(l, w, from_layer = Layers.nwell, to_layer = Layers.metal5)
+    children = GF180ViaStack(l, w, from_layer = Layers.nplus, to_layer = Layers.metal5)
     #ext, impl_enc = cfg["ext"], cfg["impl_enc"]
     #nw_res_enc = 0.5
     #well_layer = Layers.nwell if model == "nwell" else Layers.lvpwell

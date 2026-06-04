@@ -30,22 +30,19 @@ _GF180_VIA_RULES = {
 }
 
 _GF180_STACK = ViaStackTech(
-    conductors=(Layers.comp, Layers.metal1, Layers.metal2, Layers.metal3,
-                Layers.metal4, Layers.metal5, Layers.metaltop),
-    vias=(Layers.contact, Layers.via1, Layers.via2, Layers.via3,
-          Layers.via4, Layers.via5),
+    conductors=[Layers.comp, Layers.metal1, Layers.metal2, Layers.metal3,
+                Layers.metal4, Layers.metal5, Layers.metaltop],
+    vias=[Layers.contact, Layers.via1, Layers.via2, Layers.via3,
+          Layers.via4, Layers.via5],
     via_rules=_GF180_VIA_RULES,
-    well_paths={
-        "nwell": (Layers.nplus, Layers.nwell),
-        "pwell": (Layers.pplus, Layers.lvpwell)
-    },
-    well_offsets={
-        Layers.nplus: 0.24,   # 0.24μm nplus enclosure
-        Layers.nwell: 0.50,   # 0.50μm nwell enclosure
-        Layers.pplus: 0.24,   # 0.24μm pplus enclosure
-        Layers.lvpwell: 0.50  # 0.50μm lvpwell enclosure
-    },
-    #exclusive_groups=[(Layers.nwell, Layers.lvpwell), (Layers.nplus, Layers.pplus)]
+    doping=[
+        Layers.nplus,
+        Layers.pplus
+    ],
+    doping_offsets={
+        Layers.nplus: 0.16,
+        Layers.pplus: 0.16,
+    }
 )
 
 
