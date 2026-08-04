@@ -79,7 +79,7 @@ class GuardRingBase(Node):
 
         # Build rings from inside out, accumulating dimensions
         self._rings: list[Ring] = []
-        w_cur, h_cur = self.w - w/2, self.h - w/2  # tracks the shared centerline boundary
+        w_cur, h_cur = self.w - self.w/2, self.h - self.h/2  # tracks the shared centerline boundary
         
         for spec in self.ring_specs:
             self._rings.append(
