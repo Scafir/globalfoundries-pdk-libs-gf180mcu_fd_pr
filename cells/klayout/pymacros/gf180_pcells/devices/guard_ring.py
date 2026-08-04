@@ -11,9 +11,10 @@ managers, packing queries, and feature lookups.
 
 import pya as kdb
 import typing
+from dataclasses import dataclass
 
 from ..core.ring import Ring
-from ..core.guard_ring import GuardRing, RingSpec
+from ..core.guard_ring_base import GuardRingBase, RingSpec
 from ..core.factories import rect_segment, rectfill_segment
 
 from ..tech.gf180_layers import Layers
@@ -33,6 +34,11 @@ _GF180_RING_SPECS = [
     RingSpec(0.63, rect_segment(Layers.pplus)),
 ]
 
-class GuardRing(GuardRing):
-    def __init__(self, **kwargs):
-        super().__init__(ring_specs=_GF180_RING_SPECS, **kwargs)
+@dataclass
+class GuardRingParams:
+    h:              float = 2.0
+    w:              float = 0.5
+
+class GuardRing(GuardRingBase):
+    def __init__(self, p: GuardRingParams):
+        super().__init__(ring_specs=_GF180_RING_SPECS, w = p.w, h=p.h)

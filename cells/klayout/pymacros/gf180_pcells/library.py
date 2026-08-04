@@ -21,6 +21,7 @@ under the library name "gf180_pcells".
 import pya
 
 from .pcells.resistor_pcell import ResistorPCell
+from .pcells.guard_ring_pcell import GuardRingPCell
 
 
 class gf180_pcells(pya.Library):
@@ -34,5 +35,6 @@ class gf180_pcells(pya.Library):
         self.description = "GF180MCU Native PCells"
 
         self.layout().register_pcell("Resistor", ResistorPCell())
+        self.layout().register_pcell("GuardRing", GuardRingPCell())
 
         self.register("gf180_pcells")

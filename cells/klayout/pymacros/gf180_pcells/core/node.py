@@ -1,5 +1,6 @@
 import pya as kdb
 import typing
+from typing import Any
 
 class Node:
 
@@ -17,6 +18,19 @@ class Node:
 
   def __init__(self):
     pass
+
+  def param_slots(self) -> dict:
+      """Advertise overridable parameters at this node level."""
+      return {}
+
+  def _named_children(self) -> list[tuple[str, "Node"]]:
+      """Return (name, child_node) pairs for tree walking."""
+      return []
+
+  def apply_overrides(self, overrides: dict[str, Any]) -> None:
+      """Receive local-name → value dict and mutate accordingly."""
+      pass
+
 
   def bounding_box(self) -> kdb.DBox:
     return kdb.DBox()
